@@ -28,9 +28,72 @@ data class PrinterConnection(val apiUrl: String = "", val webUrl: String = "", v
     }
 }
 
-/** Moonraker HTTP API. Uploads only; never asks the printer to start a job. */
+/** Moonraker HTTP API. Upload and start are separate requests. */
 class MoonrakerClient(connection: PrinterConnection) {
     private val config = connection.normalized()
+    private var objects: Set<String>? = null
+    private var heaterConfig: JsonObject? = null
+
+    fun snapshot(): KlipperSnapshot {
+        val available = objects ?: get("/printer/objects/list")["objects"]!!.jsonArray.map { it.jsonPrimitive.content }.toSet().also { objects = it }
+        val names = available.filter { it in setOf("webhooks", "heaters", "toolhead", "print_stats", "virtual_sdcard", "fan") ||
+            it.startsWith("extruder") || it == "heater_bed" || it.startsWith("heater_generic ") || it.startsWith("temperature_sensor ") || it.startsWith("temperature_fan ") ||
+            (it == "configfile" && heaterConfig == null) }
+        val status = post("/printer/objects/query", buildJsonObject { put("objects", buildJsonObject { names.forEach { put(it, JsonNull) } }) })["status"]?.jsonObject ?: error("Нет телеметрии Klipper")
+        if (heaterConfig == null) heaterConfig = status["configfile"]?.jsonObject?.get("config") as? JsonObject
+        fun fields(name: String) = status[name] as? JsonObject ?: JsonObject(emptyMap())
+        fun JsonObject.text(key: String) = this[key]?.jsonPrimitive?.contentOrNull.orEmpty()
+        fun JsonObject.float(key: String, default: Float = 0f) = this[key]?.jsonPrimitive?.floatOrNull?.takeIf { it.isFinite() } ?: default
+        fun vector(key: String) = (fields("toolhead")[key] as? JsonArray)?.take(3)?.map { it.jsonPrimitive.floatOrNull?.takeIf(Float::isFinite) ?: 0f }?.takeIf { it.size == 3 } ?: listOf(0f, 0f, 0f)
+        val heaters = status.mapNotNull { (name, value) ->
+            val data = value as? JsonObject ?: return@mapNotNull null
+            val temperature = data["temperature"]?.jsonPrimitive?.floatOrNull?.takeIf(Float::isFinite) ?: return@mapNotNull null
+            val limits = heaterConfig?.get(name) as? JsonObject
+            HeaterState(name, temperature, data["target"]?.jsonPrimitive?.floatOrNull, limits?.float("min_temp") ?: 0f,
+                limits?.get("max_temp")?.jsonPrimitive?.floatOrNull?.takeIf(Float::isFinite))
+        }.sortedBy { when(it.name) { "extruder" -> "0"; "heater_bed" -> "1"; else -> it.name } }
+        return KlipperSnapshot(fields("webhooks").text("state") == "ready", fields("webhooks").text("state_message"), heaters,
+            fields("toolhead").text("homed_axes"), vector("position"), vector("axis_minimum"), vector("axis_maximum"),
+            fields("print_stats").text("state"), fields("print_stats").text("filename"), fields("virtual_sdcard").float("progress").coerceIn(0f, 1f),
+            if("fan" in available) fields("fan").float("speed") else null)
+    }
+
+    fun temperatureHistory(): List<TemperatureSeries> = get("/server/temperature_store").mapNotNull { (name, value) ->
+        val data = value as? JsonObject ?: return@mapNotNull null
+        fun series(key: String) = (data[key] as? JsonArray)?.takeLast(600)?.map { it.jsonPrimitive.floatOrNull?.takeIf(Float::isFinite) }.orEmpty()
+        TemperatureSeries(name, series("temperatures"), series("targets")).takeIf { it.temperatures.isNotEmpty() }
+    }
+
+    fun setHeater(name: String, target: Float) = script(KlipperControl.heater(snapshot(), name, target))
+    fun jog(axis: String, amount: Float) = script(KlipperControl.move(snapshot(), axis, amount))
+    fun home(axes: String = "") = script(KlipperControl.home(snapshot(), axes))
+    fun setFan(percent: Int) = script(KlipperControl.fan(snapshot(), percent))
+    fun heatersOff() = script("TURN_OFF_HEATERS")
+    fun motorsOff() { val s = snapshot(); require(s.ready && !s.printing) { "Двигатели заняты печатью" }; script("M84") }
+    fun emergencyStop() { post("/printer/emergency_stop") }
+    fun pause() { post("/printer/print/pause") }
+    fun resume() { post("/printer/print/resume") }
+    fun cancelPrint() { post("/printer/print/cancel") }
+    fun startPrint(filename: String) {
+        require(filename.isNotBlank() && !filename.contains('\n') && !filename.startsWith('/') && filename.split('/').none { it == ".." })
+        val s = snapshot()
+        require(s.ready && !s.printing) { "Принтер не готов к новой печати" }
+        post("/printer/print/start", buildJsonObject { put("filename", filename) })
+    }
+
+    private fun script(command: String) { post("/printer/gcode/script", buildJsonObject { put("script", command) }) }
+    private fun get(path: String): JsonObject {
+        val http = connect(path)
+        return try { readResponse(http)["result"]?.jsonObject ?: error("Пустой ответ Moonraker") } finally { http.disconnect() }
+    }
+    private fun post(path: String, body: JsonObject = JsonObject(emptyMap())): JsonObject {
+        val http = connect(path).apply { requestMethod = "POST"; doOutput = true; setRequestProperty("Content-Type", "application/json") }
+        return try {
+            http.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+            val result = readResponse(http)["result"]
+            result as? JsonObject ?: JsonObject(emptyMap())
+        } finally { http.disconnect() }
+    }
 
     fun info(): String {
         val http = connect("/server/info")
@@ -85,13 +148,14 @@ class MoonrakerClient(connection: PrinterConnection) {
             val response = readResponse(http)
             require(response["result"] != null || response["item"] != null) { "Moonraker не подтвердил загрузку" }
             onProgress(100)
-            return filename
+            val item = (response["result"] as? JsonObject)?.get("item") as? JsonObject ?: response["item"] as? JsonObject
+            return item?.get("path")?.jsonPrimitive?.contentOrNull ?: filename
         } finally { http.disconnect() }
     }
 
     private fun connect(path: String): HttpURLConnection = (URI(config.apiUrl + path).toURL().openConnection() as HttpURLConnection).apply {
         connectTimeout = 10_000
-        readTimeout = 60_000
+        readTimeout = 15_000
         instanceFollowRedirects = false
         setRequestProperty("Accept", "application/json")
         if (config.apiKey.isNotBlank()) setRequestProperty("X-Api-Key", config.apiKey)
@@ -101,9 +165,9 @@ class MoonrakerClient(connection: PrinterConnection) {
         val code = http.responseCode
         if (code == 401 || code == 403) error("Moonraker требует авторизацию. Укажите API-ключ или разрешите телефон в trusted_clients.")
         require(code in 200..299) { "Moonraker: HTTP $code" }
-        val body = http.inputStream.use { stream -> stream.readBytesLimited(128 * 1024) }
+        val body = http.inputStream.use { stream -> stream.readBytesLimited(4 * 1024 * 1024) }
         val json = Json.parseToJsonElement(body) as? JsonObject ?: error("Адрес вернул не ответ Moonraker")
-        require(json["error"] == null) { "Moonraker отклонил запрос" }
+        require(json["error"] == null) { "Moonraker: " + ((json["error"] as? JsonObject)?.get("message")?.jsonPrimitive?.contentOrNull ?: "запрос отклонён") }
         return json
     }
 

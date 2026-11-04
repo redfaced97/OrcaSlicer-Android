@@ -45,13 +45,19 @@ data class LibraryModel(
     val filename: String? = null,
     val localFile: String? = null,
     val tags: List<String> = emptyList(),
+    val author: String? = null,
+    val license: String? = null,
+    /** null means the provider did not supply a price; never infer price from a license. */
+    val paid: Boolean? = null,
+    val priceLabel: String? = null,
+    val remoteId: String? = null,
 )
 
 object ModelTags {
     fun parse(text:String):List<String> = text.split(',', ';', '\n').map { it.trim().removePrefix("#").lowercase().take(80) }.filter { it.isNotEmpty() }.distinct().take(20)
     fun matches(model:LibraryModel,query:String,tags:List<String>):Boolean {
         val words=query.trim().split(Regex("\\s+")).filter { it.isNotBlank() }
-        return words.all { word-> listOf(model.title,model.filename.orEmpty(),model.source?.title.orEmpty(),model.tags.joinToString(" ")).any { it.contains(word,true) } } && tags.all { tag->model.tags.any { it.equals(tag,true) } }
+        return words.all { word-> listOf(model.title,model.filename.orEmpty(),model.source?.title.orEmpty(),model.author.orEmpty(),model.tags.joinToString(" ")).any { it.contains(word,true) } } && tags.all { tag->model.tags.any { it.equals(tag,true) } }
     }
 }
 
@@ -70,8 +76,8 @@ object ModelDownload {
                 }
                 try {
                     if(http.responseCode in setOf(301,302,303,307,308)) { current=uri.resolve(http.getHeaderField("Location") ?: error("Нет адреса перенаправления")).toString();return@repeat }
-                    require(http.responseCode in 200..299) { "Сайт ответил HTTP ${http.responseCode}. Откройте страницу и проверьте вход и доступ к модели." }
-                    require(http.contentType?.lowercase()?.contains("text/html")!=true) { "Сайт вернул страницу вместо модели. Скачайте STL, ZIP или 3MF на странице модели." }
+                    require(http.responseCode in 200..299) { "Загрузка: HTTP ${http.responseCode}. Проверьте ключ API и доступ к модели или прикрепите свой файл." }
+                    require(http.contentType?.lowercase()?.contains("text/html")!=true) { "Площадка вернула страницу вместо файла модели. Проверьте доступ или прикрепите свой STL / ZIP / 3MF." }
                     val total=http.contentLengthLong
                     require(total<=maxBytes) { "Файл больше 96 МБ" }
                     http.inputStream.use { input -> target.outputStream().use { output ->

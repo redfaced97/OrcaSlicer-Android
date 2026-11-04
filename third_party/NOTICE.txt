@@ -19,3 +19,7 @@ License: SIL Open Font License 1.1, retained in third_party/Inter-OFL.txt.
 Russian label/help additions and enum labels: scripts/ru-overrides.json;
 upstream Russian gettext catalog remains the base. New help texts are concise
 adaptations, not a replacement technical specification of OrcaSlicer.
+
+Plate toolbar uses the upstream toolbar_open, toolbar_move and toolbar_arrange
+artwork, with their dark-theme variants. Android vector groups normalize the
+visible bounds to match the menu delete action at the same 22 dp tool size.

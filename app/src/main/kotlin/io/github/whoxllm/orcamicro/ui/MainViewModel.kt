@@ -25,6 +25,7 @@ import io.github.whoxllm.orcamicro.core.slicing.SliceInputs
 import io.github.whoxllm.orcamicro.data.PresetSelection
 import io.github.whoxllm.orcamicro.data.ProfileRepository
 import io.github.whoxllm.orcamicro.data.SavedState
+import io.github.whoxllm.orcamicro.data.CatalogCredentialStore
 import io.github.whoxllm.orcamicro.data.SettingsStore
 import io.github.whoxllm.orcamicro.engine.EngineClient
 import io.github.whoxllm.orcamicro.engine.EngineEvent
@@ -51,7 +52,6 @@ import java.io.File
 import io.github.whoxllm.orcamicro.core.network.*
 import io.github.whoxllm.orcamicro.core.mesh.ModelFiles
 import io.github.whoxllm.orcamicro.core.mesh.StlWriter
-import android.webkit.CookieManager
 import kotlinx.coroutines.CancellationException
 import java.util.UUID
 
@@ -76,6 +76,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private var historyAt = 0L
     private var uploadedConnection: PrinterConnection? = null
     private var pendingSetup = false
+    private var catalogJob: Job? = null
+    private var printSetupReturn = false
+    private val credentialStore = CatalogCredentialStore(application)
     private var pendingExternalLink:String?=null
 
     init {
@@ -92,6 +95,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val saved = withContext(Dispatchers.IO) { store.load() }
             val cacheDays=saved.modelCacheDays.takeIf { it in ModelCache.durations } ?: 7
             withContext(Dispatchers.IO) { ModelCache.clean(File(app.filesDir,"library"),cacheDays) }
+            val apiCredentials = withContext(Dispatchers.IO) { runCatching { credentialStore.load() }.getOrDefault(CatalogCredentials()) }
             val catalog = withContext(Dispatchers.IO) { profiles.catalog }
             val selection = saved.selection?.takeIf { isValid(catalog, it) } ?: defaultSelection(catalog)
             val resolved = withContext(Dispatchers.IO) { resolve(selection) }
@@ -102,6 +106,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _state.update {
                 it.copy(
                     ready = true,
+                    catalogCredentials = apiCredentials,
+                    activeModelCard = saved.libraryModels.firstOrNull { it.id==saved.activeModelId },
                     catalog = catalog,
                     selection = selection,
                     edits = if (firstRun) PresetEdits() else saved.edits,
@@ -375,7 +381,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     // ---- model ---------------------------------------------------------------------------
 
-    fun openModel(uri: Uri) {
+    fun openModel(uri: Uri) = importModel(uri)
+
+    fun attachCatalogFile(uri:Uri) {
+        val s=_state.value
+        val card=s.catalogFileModel ?: return
+        dismissCatalogFiles()
+        importModel(uri,card,s.catalogFileSetup)
+    }
+
+    private fun importModel(uri: Uri, attributed:LibraryModel?=null, setup:Boolean=false) {
         if(_state.value.libraryBusy)return showMessage("Дождитесь открытия модели")
         _state.update { it.copy(libraryBusy=true,libraryProgress="Импорт модели…") }
         viewModelScope.launch {
@@ -391,11 +406,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     runCatching { app.contentResolver.takePersistableUriPermission(uri,android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) }
                     displayName(uri)
                 }
-                val old=_state.value.libraryModels.firstOrNull { it.url==uri.toString() }
-                val card=old?.copy(filename=name,localFile=local) ?: LibraryModel(source=null,url=uri.toString(),title=name,filename=name,localFile=local)
+                val old=_state.value.libraryModels.firstOrNull { if(attributed!=null)it.id==attributed.id else it.url==uri.toString() }
+                val card=attributed?.copy(filename=name,localFile=local) ?: old?.copy(filename=name,localFile=local) ?: LibraryModel(source=null,url=uri.toString(),title=name,filename=name,localFile=local)
                 old?.localFile?.takeIf { it.matches(Regex("[a-zA-Z0-9.-]+")) }?.let { File(app.filesDir,"library/$it").delete() }
                 _state.update { it.copy(libraryBusy=false,libraryProgress=null,libraryModels=(listOf(card)+it.libraryModels.filterNot { m->m.id==card.id }).take(100),modelCacheBytes=File(app.filesDir,"library").listFiles().orEmpty().sumOf { f->f.length() }) }
-                persist();openLibraryModel(card.id)
+                persist();openLibraryModel(card.id,setup)
             } catch(e:Exception) { file.delete();_state.update { it.copy(libraryBusy=false,libraryProgress=null) };showMessage("Не удалось открыть модель: ${e.message}") }
             catch(e:OutOfMemoryError) { file.delete();_state.update { it.copy(libraryBusy=false,libraryProgress=null) };showMessage("Модель слишком большая для телефона") }
         }
@@ -457,7 +472,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun removeModel() {
-        _state.update { it.copy(model = null, lastResult = null,uploadedFile=null, slice = SliceState.Idle) }
+        _state.update { it.copy(model = null, activeModelCard=null, lastResult = null,uploadedFile=null, slice = SliceState.Idle) }
         viewModelScope.launch(Dispatchers.IO) { store.modelFile.delete() }
         persist()
     }
@@ -480,7 +495,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     // ---- slicing -------------------------------------------------------------------------
 
-    fun slice() {
+    fun slice() = sliceInternal(false)
+
+    fun quickSlice() = sliceInternal(true)
+
+    private fun sliceInternal(quickPrint:Boolean) {
         val state = _state.value
         val model = state.model ?: return showMessage("Сначала откройте STL-модель")
         val inputs = state.inputs ?: return
@@ -511,18 +530,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 result == null -> fail("Движок нарезки не ответил.", job.logTail())
                 !result.ok -> fail(explain(result), job.logTail())
                 _state.value.model !== state.model || _state.value.inputs !== state.inputs -> _state.update { it.copy(slice=SliceState.Idle,lastResult=null,uploadedFile=null,screen=Screen.PLATE,message="Модель или параметры изменились. Повторите нарезку.") }
-                else -> showPreview(job, result, model.name)
+                else -> showPreview(job, result, model.name, quickPrint)
             }
         }
     }
 
-    private suspend fun showPreview(job: SliceJob, result: EngineResponse, modelName: String) {
+    private suspend fun showPreview(job: SliceJob, result: EngineResponse, modelName: String, quickPrint:Boolean) {
         _state.update { it.copy(slice = SliceState.Running(100, "Подготовка предпросмотра")) }
         val gcode = result.gcodePath?.let { File(it) }?.takeIf { it.isFile } ?: job.gcode
         try {
             val toolpaths = withContext(Dispatchers.Default) { gcode.bufferedReader().use { GcodeParser.parse(it) } }
             val done = SliceState.Done(gcode, toolpaths, result.warnings.map(Russian::text), modelName)
-            _state.update { it.copy(slice = SliceState.Idle, lastResult = done, screen = Screen.PREVIEW) }
+            _state.update { it.copy(slice = SliceState.Idle, lastResult = done, screen = if(quickPrint)Screen.PRINT_SETUP else Screen.PREVIEW) }
         } catch (e: OutOfMemoryError) {
             fail("G-code создан, но слишком велик для предпросмотра на этом устройстве.", null)
         }
@@ -570,11 +589,71 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     // ---- online models and print preparation ---------------------------------------------
 
-    fun browseModels(url: String) {
-        if(ModelSource.of(url)==null) return showMessage("Выберите Thingiverse, Printables, Cults3D или MakerWorld")
-        _state.update { it.copy(screen=Screen.LIBRARY, libraryBrowser=url) }
+    fun searchModels(source:ModelSource=_state.value.catalogSource,query:String=_state.value.catalogQuery,tags:List<String> = _state.value.catalogTags,more:Boolean=false) {
+        val before=_state.value
+        if(more&&(before.catalogLoading||before.catalogNext==null))return
+        val offset=if(more)before.catalogNext ?: 0 else 0
+        catalogJob?.cancel()
+        _state.update { it.copy(catalogSource=source,catalogQuery=query,catalogTags=tags,catalogLoading=true,catalogLoaded=true,catalogError=null,
+            catalogModels=if(more)it.catalogModels else emptyList(),catalogNext=if(more)it.catalogNext else null,catalogTotal=if(more)it.catalogTotal else 0) }
+        val credentials=_state.value.catalogCredentials
+        catalogJob=viewModelScope.launch {
+            try {
+                val page=withContext(Dispatchers.IO) { ModelCatalogClient(credentials).search(source,query,tags,offset) }
+                _state.update { it.copy(catalogLoading=false,catalogModels=(if(more)it.catalogModels+page.models else page.models).distinctBy { m->m.id },catalogNext=page.nextOffset,catalogTotal=page.total) }
+            } catch(e:CancellationException) { throw e }
+            catch(e:Exception) { _state.update { it.copy(catalogLoading=false,catalogError=e.message ?: "Каталог недоступен") } }
+        }
     }
-    fun closeModelBrowser() = _state.update { it.copy(libraryBrowser=null) }
+    fun saveCatalogCredentials(credentials:CatalogCredentials) {
+        try { credentials.validate() }catch(e:Exception) { return showMessage(e.message ?: "Проверьте ключи") }
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) { credentialStore.save(credentials) }
+                _state.update { it.copy(catalogCredentials=credentials) };searchModels();showMessage("Настройки API сохранены на устройстве")
+            }catch(e:Exception) { showMessage("Не удалось сохранить ключи: ${e.message}") }
+        }
+    }
+    private fun keepCatalogCard(model:LibraryModel):LibraryModel {
+        val old=_state.value.libraryModels.firstOrNull { it.id==model.id || it.url==model.url }
+        val saved=model.copy(id=old?.id ?: model.id,localFile=old?.localFile,filename=old?.filename,tags=(model.tags+old?.tags.orEmpty()).distinct().take(20))
+        _state.update { it.copy(libraryModels=(listOf(saved)+it.libraryModels.filterNot { m->m.id==saved.id }).take(100),
+            catalogModels=it.catalogModels.map { m->if(m.id==model.id||m.url==model.url)m.copy(author=saved.author,license=saved.license,paid=saved.paid,priceLabel=saved.priceLabel)else m }) };persist()
+        return saved
+    }
+    fun prepareCatalogModel(model:LibraryModel,setup:Boolean) {
+        if(_state.value.libraryBusy)return
+        val cached=_state.value.libraryModels.firstOrNull { (it.id==model.id || it.url==model.url)&&it.localFile!=null }
+        if(cached!=null) { openLibraryModel(cached.id,setup);return }
+        _state.update { it.copy(libraryBusy=true,libraryProgress="Получение файлов ${model.source?.title.orEmpty()}…",catalogFileModel=null,catalogFiles=emptyList(),catalogNotice=null) }
+        val client=ModelCatalogClient(_state.value.catalogCredentials)
+        viewModelScope.launch {
+            try {
+                val detail=withContext(Dispatchers.IO) { client.details(model.url) }
+                val card=keepCatalogCard(detail.model)
+                _state.update { it.copy(libraryBusy=false,libraryProgress=null,catalogFileModel=card,catalogFiles=detail.files,catalogFileSetup=setup,catalogNotice=detail.notice) }
+                if(detail.files.size==1)chooseCatalogFile(detail.files.single())
+            }catch(e:CancellationException) { throw e }
+            catch(e:Exception) { _state.update { it.copy(libraryBusy=false,libraryProgress=null,catalogFileModel=model,catalogFileSetup=setup,catalogNotice=e.message ?: "Не удалось получить файлы") } }
+        }
+    }
+    fun dismissCatalogFiles() = _state.update { it.copy(catalogFiles=emptyList(),catalogFileModel=null,catalogNotice=null) }
+    fun chooseCatalogFile(file:CatalogFile) {
+        val s=_state.value;val card=s.catalogFileModel ?: return
+        if(s.libraryBusy)return
+        _state.update { it.copy(libraryBusy=true,libraryProgress="Получение ссылки на файл…",catalogNotice=null) }
+        val client=ModelCatalogClient(s.catalogCredentials)
+        viewModelScope.launch {
+            try {
+                val url=withContext(Dispatchers.IO) { client.downloadUrl(card,file) }
+                _state.update { it.copy(libraryBusy=false,libraryProgress=null) };dismissCatalogFiles()
+                downloadModel(url,card.url,card.title,file.name,card.imageUrl,tags=card.tags,setup=s.catalogFileSetup,catalogCard=card)
+            }catch(e:CancellationException) { throw e }
+            catch(e:Exception) { _state.update { it.copy(libraryBusy=false,libraryProgress=null,catalogNotice=e.message ?: "Не удалось получить файл") } }
+        }
+    }
+    fun editQuickPrintPlacement() = _state.update { it.copy(screen=Screen.PLATE,quickPrintPlacement=true) }
+    fun finishQuickPrintPlacement() = _state.update { it.copy(screen=Screen.PRINT_SETUP,quickPrintPlacement=false) }
     fun addLibraryCard(url:String,title:String,image:String?=null,tags:List<String> = emptyList()):LibraryModel? {
         val valid=runCatching { java.net.URI(url).let { it.scheme=="https"&&!it.host.isNullOrBlank()&&it.userInfo==null } }.getOrDefault(false)
         if(!valid)return null
@@ -590,9 +669,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _state.update { it.copy(libraryModels=it.libraryModels.filterNot { m->m.id==id }) };persist()
         card.localFile?.let { name-> File(app.filesDir,"library/$name").takeIf { name.matches(Regex("[a-zA-Z0-9.-]+")) }?.delete() }
     }
-    fun downloadModel(url:String,page:String,title:String,filename:String,image:String?=null,userAgent:String="",tags:List<String> = emptyList()) {
+    fun downloadModel(url:String,page:String,title:String,filename:String,image:String?=null,userAgent:String="",tags:List<String> = emptyList(),setup:Boolean=true,catalogCard:LibraryModel?=null) {
         if(_state.value.libraryBusy) return
-        val card=addLibraryCard(page,title,image,tags) ?: return showMessage("Проверьте ссылку на модель")
+        val card=(catalogCard?.let(::keepCatalogCard) ?: addLibraryCard(page,title,image,tags)) ?: return showMessage("Проверьте ссылку на модель")
         _state.update { it.copy(libraryBusy=true,libraryProgress="Скачивание модели…") }
         viewModelScope.launch {
             val local="${UUID.randomUUID()}.bin"
@@ -601,7 +680,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 withContext(Dispatchers.IO) {
                     var last=-1L
                     ModelDownload.fetch(url,file,headers={ target -> buildMap {
-                        CookieManager.getInstance().getCookie(target)?.let { put("Cookie",it) }
+                        putAll(ModelCatalogClient(_state.value.catalogCredentials).headers(target))
                         if(userAgent.isNotBlank()) put("User-Agent",userAgent)
                         put("Referer",page)
                     } },progress={ received,total ->
@@ -612,8 +691,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 card.localFile?.let { old->if(old.matches(Regex("[a-zA-Z0-9.-]+")))File(app.filesDir,"library/$old").delete() }
                 val saved=card.copy(localFile=local,filename=filename.substringAfterLast('/').substringAfterLast('\\').take(180))
-                _state.update { it.copy(libraryBusy=false,libraryProgress=null,libraryBrowser=null,libraryModels=it.libraryModels.map { m->if(m.id==card.id)saved else m },modelCacheBytes=File(app.filesDir,"library").listFiles().orEmpty().sumOf { f->f.length() }) };persist()
-                openLibraryModel(card.id,setup=true)
+                _state.update { it.copy(libraryBusy=false,libraryProgress=null,libraryModels=it.libraryModels.map { m->if(m.id==card.id)saved else m },modelCacheBytes=File(app.filesDir,"library").listFiles().orEmpty().sumOf { f->f.length() }) };persist()
+                openLibraryModel(card.id,setup=setup)
             } catch(e:Exception) { file.delete();_state.update { it.copy(libraryBusy=false,libraryProgress=null) };showMessage("Не удалось скачать модель: ${e.message}") }
             catch(e:OutOfMemoryError) { file.delete();_state.update { it.copy(libraryBusy=false,libraryProgress=null) };showMessage("Модель слишком большая для телефона") }
         }
@@ -621,7 +700,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun openLibraryModel(id:String,setup:Boolean=false,entry:String?=null) {
         if(_state.value.libraryBusy) return
         val card=_state.value.libraryModels.firstOrNull { it.id==id } ?: return
-        val name=card.localFile ?: return openModelLink(card.url)
+        val name=card.localFile ?: return if(card.source!=null)prepareCatalogModel(card,setup)else openModelLink(card.url)
         if(!name.matches(Regex("[a-zA-Z0-9.-]+")))return
         val file=File(app.filesDir,"library/$name")
         _state.update { it.copy(libraryBusy=true,libraryProgress="Открытие модели…",archiveChoices=emptyList(),pendingLibraryId=null) }
@@ -634,7 +713,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 val mesh=withContext(Dispatchers.IO) { ModelFiles.read(file,entry).also { mesh->file.setLastModified(System.currentTimeMillis());store.modelFile.outputStream().use { StlWriter.write(mesh,it) } } }
                 setModel(entry?.substringAfterLast('/') ?: card.filename ?: card.title,mesh,centeredPlacement())
-                _state.update { it.copy(libraryBusy=false,libraryProgress=null,lastResult=null,uploadedFile=null,printDialog=false,screen=if(setup)Screen.PRINT_SETUP else Screen.PLATE) };persist()
+                _state.update { it.copy(libraryBusy=false,libraryProgress=null,lastResult=null,uploadedFile=null,printDialog=false,activeModelCard=card,quickPrintPlacement=false,screen=if(setup)Screen.PRINT_SETUP else Screen.PLATE) };persist()
             } catch(e:Exception) { _state.update { it.copy(libraryBusy=false,libraryProgress=null) };showMessage("Не удалось открыть модель: ${e.message}") }
             catch(e:OutOfMemoryError) { _state.update { it.copy(libraryBusy=false,libraryProgress=null) };showMessage("Модель слишком большая для телефона") }
         }
@@ -647,7 +726,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if((text.startsWith("content://")||text.startsWith("file://"))&&_state.value.libraryModels.any { it.url==text }) { openModel(Uri.parse(text));return }
         try {
             when(val link=ModelLinks.parse(text)) {
-                is ModelLink.Page -> browseModels(link.url)
+                is ModelLink.Page -> {
+                    navigate(Screen.LIBRARY)
+                    val source=ModelSource.of(link.url)!!
+                    val id=ModelCatalogClient.modelId(source,link.url)
+                    prepareCatalogModel(LibraryModel(id="${source.name.lowercase()}:$id",source=source,url=link.url,title=source.title,remoteId=id),true)
+                }
                 is ModelLink.File -> { navigate(Screen.LIBRARY);downloadModel(link.url,link.source ?: link.url,link.name,link.name) }
                 null -> { navigate(Screen.LIBRARY);showMessage("Введите запрос или HTTPS-ссылку на модель") }
             }
@@ -676,9 +760,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     // ---- navigation and messages ---------------------------------------------------------
 
-    fun openSettings(type: PresetType = PresetType.PROCESS) = _state.update { it.copy(screen = Screen.SETTINGS, settingsType = type) }
+    fun openSettings(type: PresetType = PresetType.PROCESS) {
+        if(_state.value.screen==Screen.PRINT_SETUP)printSetupReturn=true
+        _state.update { it.copy(screen = Screen.SETTINGS, settingsType = type) }
+    }
 
-    fun openPreset(type: PresetType) = _state.update { it.copy(screen = Screen.PRESETS, presetPicker = type) }
+    fun openPreset(type: PresetType) {
+        if(_state.value.screen==Screen.PRINT_SETUP)printSetupReturn=true
+        _state.update { it.copy(screen = Screen.PRESETS, presetPicker = type) }
+    }
 
     fun saveConnection(connection: PrinterConnection): Boolean = try {
         val normalized = connection.normalized()
@@ -814,9 +904,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun navigate(screen: Screen) = _state.update { it.copy(screen = screen, presetPicker = null) }
+    fun navigate(screen: Screen) {
+        printSetupReturn=false
+        _state.update { it.copy(screen = screen, presetPicker = null,quickPrintPlacement=false) }
+    }
 
-    fun back() = _state.update { it.copy(screen = Screen.PLATE) }
+    fun back() {
+        _state.update { it.copy(screen = if(it.quickPrintPlacement||printSetupReturn)Screen.PRINT_SETUP else Screen.PLATE,quickPrintPlacement=false) }
+        printSetupReturn=false
+    }
 
     fun showMessage(message: String) = _state.update { it.copy(message = message) }
 
@@ -825,7 +921,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun persist() {
         val state = _state.value
         val saved = SavedState(state.selection, state.edits, state.model?.name, state.model?.placement, state.favorites, state.connection, state.userPresets, state.renderOptions,
-            state.printers,state.activePrinterId,state.libraryModels,state.modelCacheDays)
+            state.printers,state.activePrinterId,state.libraryModels,state.modelCacheDays,state.activeModelCard?.id)
         saves.trySend(saved)
     }
 }

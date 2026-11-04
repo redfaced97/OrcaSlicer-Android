@@ -25,7 +25,7 @@ fun DesktopHeader(state: UiState, viewModel: MainViewModel, actions: @Composable
         Surface {
             Row(Modifier.fillMaxWidth().heightIn(min = 52.dp).padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Image(painterResource(R.drawable.orca_logo), null, Modifier.size(26.dp))
-                Text(if (state.screen == Screen.PRESETS) "Профили" else tabs.firstOrNull { it.first == selected }?.second.orEmpty(), Modifier.weight(1f).padding(start = 8.dp), style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(if (state.screen == Screen.PRINT_SETUP) "Quick Print" else if (state.screen == Screen.PRESETS) "Профили" else tabs.firstOrNull { it.first == selected }?.second.orEmpty(), Modifier.weight(1f).padding(start = 8.dp), style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if(state.screen != Screen.DEVICE && state.screen != Screen.PRESETS) {
                     IconButton(onClick = { viewModel.openPreset(state.settingsType) }) { OrcaIcon(OrcaAction.Library, "Библиотека профилей") }
                     IconButton(onClick = { viewModel.openSettings() }) { OrcaIcon(OrcaAction.Settings, "Параметры печати") }

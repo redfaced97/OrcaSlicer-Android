@@ -40,7 +40,7 @@ fun OrcaMicroApp(viewModel: MainViewModel) {
                     Text(state.loadError ?: "", style = MaterialTheme.typography.bodyLarge)
                 }
                 else -> {
-                    BackHandler(enabled = state.screen != Screen.PLATE) { viewModel.back() }
+                    BackHandler(enabled = state.screen != Screen.PLATE || state.quickPrintPlacement) { viewModel.back() }
                     when (state.screen) {
                         Screen.PLATE, Screen.SETTINGS -> PlateScreen(state, viewModel)
                         Screen.PRESETS -> PresetsScreen(state, viewModel)
@@ -53,6 +53,7 @@ fun OrcaMicroApp(viewModel: MainViewModel) {
                     if(state.archiveChoices.isNotEmpty())AlertDialog(onDismissRequest=viewModel::dismissArchive,title={Text("Выберите деталь из архива")},text={
                         LazyColumn(Modifier.heightIn(max=420.dp)) { items(state.archiveChoices) { entry->TextButton(onClick={viewModel.chooseArchiveEntry(entry)}){Text(entry)} } }
                     },confirmButton={TextButton(onClick=viewModel::dismissArchive){Text("Закрыть")}})
+                    if(state.catalogFileModel!=null)CatalogFilesDialog(state,viewModel)
                     if(state.printDialog)PrintSendDialog(state,viewModel)
                     if (state.uploadPercent != null) AlertDialog(
                         onDismissRequest = {}, title = { Text("Загрузка G-code") },

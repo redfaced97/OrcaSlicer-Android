@@ -49,9 +49,9 @@ fun PlateScreen(state: UiState, viewModel: MainViewModel) {
         bottomBar = {
             Surface(tonalElevation = 2.dp) {
                 Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { viewModel.navigate(Screen.PRINT_SETUP) }, shape = MaterialTheme.shapes.small, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp), modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
+                    OutlinedButton(onClick = { viewModel.finishQuickPrintPlacement() }, shape = MaterialTheme.shapes.small, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp), modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
                         OrcaIcon(OrcaAction.Settings, null, Modifier.size(20.dp))
-                        Text("К печати", Modifier.padding(start = 6.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(if(state.quickPrintPlacement)"В Quick Print" else "К печати", Modifier.padding(start = 6.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     Button(onClick = viewModel::slice, enabled = state.model?.fits == true && state.slice !is SliceState.Running, shape = MaterialTheme.shapes.small, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp), modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
                         Icon(Icons.Default.PlayArrow, null, Modifier.size(20.dp))
@@ -66,7 +66,7 @@ fun PlateScreen(state: UiState, viewModel: MainViewModel) {
             if (profilesVisible && !shortScreen) DesktopProfiles(state, viewModel) { showColor = true }
             Surface(color = MaterialTheme.colorScheme.surfaceVariant) {
                 Row(Modifier.fillMaxWidth()) {
-                    PlateTool(OrcaAction.Add, "Добавить", true) { openModel.launch(arrayOf("*/*")) }
+                    PlateTool(OrcaAction.PlateAdd, "Добавить", true) { openModel.launch(arrayOf("*/*")) }
                     PlateTool(OrcaAction.Move, if(compact) "Правка" else "Положение", state.model != null) { showPlacement = true }
                     PlateTool(OrcaAction.Center, "В центр", state.model != null) { viewModel.centerModel() }
                     PlateTool(OrcaAction.Delete, "Удалить", state.model != null) { viewModel.removeModel() }

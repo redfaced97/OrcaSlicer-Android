@@ -37,6 +37,7 @@ data class SavedState(
     val activePrinterId: String? = null,
     val libraryModels: List<LibraryModel> = emptyList(),
     val modelCacheDays: Int = 7,
+    val activeModelId: String? = null,
 )
 
 /** Persists [SavedState] as JSON in app storage, and keeps a copy of the current model. */

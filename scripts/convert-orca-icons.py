@@ -56,5 +56,17 @@ for source in sorted((root/'third_party/orca-icons').glob('*.svg')):
     svg=E.parse(source).getroot()
     viewport=svg.get('viewBox','0 0 16 16').split()
     output=E.Element('vector',{attr('width'):'24dp',attr('height'):'24dp',attr('viewportWidth'):viewport[2],attr('viewportHeight'):viewport[3]})
-    for child in svg: convert(child,output)
-    (root/'app/src/main/res/drawable'/f'orca_{source.stem}.xml').write_text(E.tostring(output,encoding='unicode')+'\n')
+    target=output
+    # Equal visible bounds for the phone's four plate tools, irrespective of the
+    # desktop SVG canvas (16 px menu art versus 40 px toolbar art).
+    artwork=source.stem.removesuffix('_dark')
+    bounds={'toolbar_open':(3.5,3.5,32),'toolbar_move':(3.5,3.5,32),'toolbar_arrange':(3.5,3.5,32),'delete':(0,0,15)}.get(artwork)
+    if bounds:
+        x,y,span=bounds
+        output.set(attr('viewportWidth'),'24');output.set(attr('viewportHeight'),'24')
+        factor=24/span
+        target=E.SubElement(output,'group',{attr('scaleX'):str(factor),attr('scaleY'):str(factor),attr('translateX'):str(-x*factor),attr('translateY'):str(-y*factor)})
+    for child in svg: convert(child,target)
+    folder=root/'app/src/main/res'/('drawable-night' if source.stem.endswith('_dark') else 'drawable')
+    folder.mkdir(exist_ok=True)
+    (folder/f'orca_{artwork}.xml').write_text(E.tostring(output,encoding='unicode')+'\n')

@@ -60,17 +60,16 @@ fun AboutScreen(state: UiState, viewModel: MainViewModel) {
             Text("Продюсер — redfaced97")
             Text("Программист — Codex GPT-6.1-Sol")
             Text("Бета-тестер — redfaced97 и Ender 3 v3 SE (Klipper)")
-            Text("Generated with AI assistant, sorry(", style = MaterialTheme.typography.labelMedium)
             Text("Источники", style = MaterialTheme.typography.titleMedium)
             Text("Android-основа и JNI-мост — OrcaMicro, whoxllm и участники проекта. Исходники адаптированы для этой версии.")
             OutlinedButton(onClick = { open("https://github.com/whoxllm/OrcaMicro") }) { Text("Исходники OrcaMicro") }
-            Text("Движок libslic3r, профили, русские подписи и подсказки — OrcaSlicer ${BuildConfig.ORCA_VERSION}, SoftFever и участники; на основе Bambu Studio, PrusaSlicer и Slic3r.")
+            Text("Движок libslic3r, профили, основа русских подписей и подсказок — OrcaSlicer ${BuildConfig.ORCA_VERSION}, SoftFever и участники; на основе Bambu Studio, PrusaSlicer и Slic3r. Недостающие русские подписи и краткие пояснения дополнены в этой адаптации.")
             OutlinedButton(onClick = { open("https://github.com/OrcaSlicer/OrcaSlicer") }) { Text("Исходники OrcaSlicer") }
-            Text("Иконка — официальный репозиторий OrcaSlicer: resources/images/OrcaSlicer.svg. Акцент #009688 и серые тона — из настольного интерфейса OrcaSlicer. Android-представление иконки преобразовано из оригинального SVG.")
+            Text("Шрифт Inter — Rasmus Andersson и участники, SIL OFL 1.1. Иконки действий и иконка приложения — официальный репозиторий OrcaSlicer: resources/images/OrcaSlicer.svg. Акцент #009688 и серые тона — из настольного интерфейса OrcaSlicer. Android-представление иконки преобразовано из оригинального SVG.")
             OutlinedButton(onClick = { open("https://www.orcaslicer.com/") }) { Text("Официальный сайт OrcaSlicer") }
             Text("Загрузка G-code — собственный HTTP-клиент по документации Moonraker. Вкладка принтера открывает установленный на принтере Mainsail или Fluidd через Android WebView.")
             Text("Возможности этой версии", style = MaterialTheme.typography.titleMedium)
-            Text("STL, один объект и материал, 638 параметров, импорт профилей, просмотр слоёв и загрузка G-code. 3MF-проекты, покраска и мультиматериальная нарезка пока отсутствуют. Совместимость 90% не измерена.")
+            Text("STL, один объект и материал, 638 параметров, библиотека своих профилей, цвет и перенос модели двойным тапом, просмотр слоёв с Dev menu и загрузка G-code. 3MF-проекты, покраска и мультиматериальная нарезка пока отсутствуют. Совместимость 90% не измерена.")
             Text("Лицензия AGPL-3.0. Изменённые исходники поставляются в архиве OrcaSlicer-source.zip вместе с APK.", style = MaterialTheme.typography.bodySmall)
             if (BuildConfig.SOURCE_URL.isNotBlank()) OutlinedButton(onClick = { open(BuildConfig.SOURCE_URL) }) { Text("Исходники этой адаптации") }
             Text("Библиотеки", style = MaterialTheme.typography.titleMedium)

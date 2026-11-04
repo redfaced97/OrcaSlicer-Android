@@ -19,7 +19,10 @@ data class OrcaOption(
     val valueType: String = "coString",
     val unit: String = "",
     val choices: List<String> = emptyList(),
+    val choiceLabelsRu: Map<String, String> = emptyMap(),
 ) {
+    fun choiceLabel(value: String): String = choiceLabelsRu[value] ?: value
+
     val isList: Boolean get() = valueType in setOf("coFloats", "coInts", "coStrings", "coPercents", "coBools", "coEnums", "coFloatsOrPercents", "coPoints", "coPointsGroups")
     val isGcode: Boolean get() = "gcode" in key
     val isNumber: Boolean get() = valueType in setOf("coFloat", "coInt", "coPercent", "coFloatOrPercent")
@@ -71,6 +74,12 @@ object OrcaOptions {
         is JsonPrimitive -> if (value == JsonNull || value.content == "nil") "По умолчанию" else value.content
         is JsonArray -> value.joinToString(" · ") { display(it) }.ifEmpty { "Нет значений" }
         is JsonObject -> value.entries.joinToString("; ") { "${it.key}: ${display(it.value)}" }
+    }
+
+    fun display(option: OrcaOption, value: JsonElement?): String = when(value) {
+        is JsonArray -> value.joinToString(" · ") { display(option, it) }
+        is JsonPrimitive -> if (scalarOption(option).valueType == "coBool") when(value.content) { "1", "true" -> "Включено"; "0", "false" -> "Выключено"; else -> display(value) } else option.choiceLabel(display(value))
+        else -> display(value)
     }
 
     fun scalarOption(option: OrcaOption): OrcaOption = option.copy(valueType = when (option.valueType) {

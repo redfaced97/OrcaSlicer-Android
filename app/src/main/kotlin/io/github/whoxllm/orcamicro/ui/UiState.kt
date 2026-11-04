@@ -9,6 +9,8 @@ import io.github.whoxllm.orcamicro.core.settings.BedShape
 import io.github.whoxllm.orcamicro.core.settings.PresetEdits
 import io.github.whoxllm.orcamicro.core.slicing.SliceInputs
 import io.github.whoxllm.orcamicro.data.PresetSelection
+import io.github.whoxllm.orcamicro.core.profiles.UserPreset
+import io.github.whoxllm.orcamicro.core.settings.RenderOptions
 import java.io.File
 import io.github.whoxllm.orcamicro.core.network.PrinterConnection
 import io.github.whoxllm.orcamicro.core.profiles.PresetType
@@ -23,6 +25,9 @@ data class ModelState(
     val placed: Mesh,
     val size: Vec3,
     val fits: Boolean,
+    val offsetX: Float = 0f,
+    val offsetY: Float = 0f,
+    val placedBounds: io.github.whoxllm.orcamicro.core.mesh.Bounds = placed.bounds(),
 )
 
 sealed interface SliceState {
@@ -52,6 +57,8 @@ data class UiState(
     val settingsType: PresetType = PresetType.PROCESS,
     val presetPicker: PresetType? = null,
     val connection: PrinterConnection = PrinterConnection(),
+    val userPresets: List<UserPreset> = emptyList(),
+    val renderOptions: RenderOptions = RenderOptions(),
     val printerStatus: String? = null,
     val connecting: Boolean = false,
     val uploadPercent: Int? = null,

@@ -11,6 +11,8 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -30,6 +32,7 @@ import kotlin.math.roundToInt
 @Composable
 fun PlateScreen(state: UiState, viewModel: MainViewModel) {
     val openModel = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(viewModel::openModel) }
+    var showColor by remember { mutableStateOf(false) }
     var showPlacement by rememberSaveable { mutableStateOf(false) }
     var profilesVisible by rememberSaveable { mutableStateOf(true) }
     val shortScreen = LocalConfiguration.current.screenHeightDp < 500
@@ -38,14 +41,14 @@ fun PlateScreen(state: UiState, viewModel: MainViewModel) {
     Scaffold(
         topBar = {
             DesktopHeader(state, viewModel) {
-                IconButton(onClick = { if (shortScreen) viewModel.navigate(Screen.PRESETS) else profilesVisible = !profilesVisible }) { Icon(Icons.Default.Menu, "Показать или скрыть профили") }
+                IconButton(onClick = { if (shortScreen) viewModel.navigate(Screen.PRESETS) else profilesVisible = !profilesVisible }) { OrcaIcon(OrcaAction.Menu, "Показать или скрыть профили") }
             }
         },
         bottomBar = {
             Surface(tonalElevation = 2.dp) {
                 Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = { viewModel.openSettings() }, shape = MaterialTheme.shapes.small, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
-                        Icon(Icons.Default.Settings, null, Modifier.size(18.dp))
+                        OrcaIcon(OrcaAction.Settings, null, Modifier.size(20.dp))
                         Text("Параметры", Modifier.padding(start = 6.dp))
                     }
                     Button(onClick = viewModel::slice, enabled = state.model?.fits == true && state.slice !is SliceState.Running, shape = MaterialTheme.shapes.small, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
@@ -58,29 +61,33 @@ fun PlateScreen(state: UiState, viewModel: MainViewModel) {
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
-            if (profilesVisible && !shortScreen) DesktopProfiles(state, viewModel)
+            if (profilesVisible && !shortScreen) DesktopProfiles(state, viewModel) { showColor = true }
             Surface(color = MaterialTheme.colorScheme.surfaceVariant) {
                 Row(Modifier.fillMaxWidth()) {
-                    PlateTool(Icons.Default.Add, "Добавить", true) { openModel.launch(arrayOf("*/*")) }
-                    PlateTool(Icons.Default.Edit, "Положение", state.model != null) { showPlacement = true }
-                    PlateTool(Icons.Default.Refresh, "В центр", state.model != null) { viewModel.centerModel() }
-                    PlateTool(Icons.Default.Delete, "Удалить", state.model != null) { viewModel.removeModel() }
+                    PlateTool(OrcaAction.Add, "Добавить", true) { openModel.launch(arrayOf("*/*")) }
+                    PlateTool(OrcaAction.Move, "Положение", state.model != null) { showPlacement = true }
+                    PlateTool(OrcaAction.Center, "В центр", state.model != null) { viewModel.centerModel() }
+                    PlateTool(OrcaAction.Delete, "Удалить", state.model != null) { viewModel.removeModel() }
                 }
             }
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 val renderer = remember { PlateRenderer() }
                 val framedBed = remember { arrayOfNulls<BedShape>(1) }
-                SceneView(renderer, Modifier.fillMaxSize()) { r ->
+                SceneView(renderer, Modifier.fillMaxSize(), onModelDrag = viewModel::moveModelBy, onModelDragEnd = viewModel::finishModelMove) { r ->
                     val bed = state.bed
                     if (bed != null && framedBed[0] != bed) {
                         r.camera.frame(bed.centerX, bed.centerY, 0f, max(bed.width, bed.depth) * 0.6f)
                         framedBed[0] = bed
                     }
                     r.setBed(bed, state.printableHeight)
+                    r.setRenderOptions(state.renderOptions)
+                    r.offsetX = state.model?.offsetX ?: 0f
+                    r.offsetY = state.model?.offsetY ?: 0f
+                    r.modelColor = state.modelRgb()
                     r.setModel(state.model?.placed, state.model?.fits ?: true)
                 }
                 Surface(Modifier.align(Alignment.TopStart).padding(8.dp), shape = MaterialTheme.shapes.extraSmall, color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f)) {
-                    Text("Стол 1", Modifier.padding(horizontal = 10.dp, vertical = 6.dp), style = MaterialTheme.typography.labelMedium)
+                    Text("Стол 1 • двойной тап + движение — перенос", Modifier.padding(horizontal = 10.dp, vertical = 6.dp), style = MaterialTheme.typography.labelMedium)
                 }
                 val model = state.model
                 if (model == null) {
@@ -101,6 +108,7 @@ fun PlateScreen(state: UiState, viewModel: MainViewModel) {
             }
         }
     }
+    if (showColor) ModelColorSheet(state, viewModel) { showColor = false }
     if (showPlacement && state.model != null) PlacementSheet(state.model, state, viewModel::setPlacement, viewModel::centerModel) { showPlacement = false }
     if (state.screen == Screen.SETTINGS) {
         ModalBottomSheet(onDismissRequest = viewModel::back, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), dragHandle = null) {
@@ -110,17 +118,17 @@ fun PlateScreen(state: UiState, viewModel: MainViewModel) {
 }
 
 @Composable
-private fun RowScope.PlateTool(icon: ImageVector, title: String, enabled: Boolean, onClick: () -> Unit) {
+private fun RowScope.PlateTool(icon: OrcaAction, title: String, enabled: Boolean, onClick: () -> Unit) {
     TextButton(onClick = onClick, enabled = enabled, shape = MaterialTheme.shapes.extraSmall, modifier = Modifier.weight(1f).heightIn(min = 52.dp), contentPadding = PaddingValues(2.dp)) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(icon, title, Modifier.size(20.dp))
+            OrcaIcon(icon, title, Modifier.size(22.dp))
             Text(title, style = MaterialTheme.typography.labelSmall, maxLines = 1)
         }
     }
 }
 
 @Composable
-private fun DesktopProfiles(state: UiState, viewModel: MainViewModel) {
+private fun DesktopProfiles(state: UiState, viewModel: MainViewModel, onColor: () -> Unit) {
     val inputs = state.inputs ?: return
     val rows = listOf(
         Triple(PresetType.MACHINE, "Принтер", inputs.machine.string("name").orEmpty()),
@@ -132,8 +140,11 @@ private fun DesktopProfiles(state: UiState, viewModel: MainViewModel) {
             for ((type, label, value) in rows) {
                 Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { viewModel.openPreset(type) }.padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(label, Modifier.width(66.dp), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (type == PresetType.FILAMENT) IconButton(onClick = onColor, modifier = Modifier.semantics { contentDescription = "Выбрать цвет модели" }) {
+                        androidx.compose.foundation.Canvas(Modifier.size(24.dp)) { drawCircle(Color(0xFF000000 or state.modelRgb().toLong())) }
+                    }
                     Text(value, Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
-                    IconButton(onClick = { viewModel.openSettings(type) }) { Icon(Icons.Default.Settings, "Параметры: $label", Modifier.size(18.dp)) }
+                    IconButton(onClick = { viewModel.openSettings(type) }) { OrcaIcon(OrcaAction.Settings, "Параметры: $label") }
                 }
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             }
@@ -146,7 +157,7 @@ private fun ModelInfo(model: ModelState, modifier: Modifier = Modifier) {
     Card(modifier = modifier) {
         Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
             Text(
-                "%.1f × %.1f × %.1f mm".format(model.size.x, model.size.y, model.size.z),
+                "%.1f × %.1f × %.1f мм".format(model.size.x, model.size.y, model.size.z),
                 style = MaterialTheme.typography.labelLarge,
             )
             if (!model.fits) {
@@ -174,8 +185,8 @@ private fun PlacementSheet(
         ) {
             Text("Положение модели", style = MaterialTheme.typography.titleMedium)
             Text(
-                "%.1f × %.1f × %.1f mm".format(model.size.x, model.size.y, model.size.z) +
-                    if (model.fits) "" else "  ·  does not fit",
+                "%.1f × %.1f × %.1f мм".format(model.size.x, model.size.y, model.size.z) +
+                    if (model.fits) "" else "  ·  не помещается",
                 color = if (model.fits) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error,
             )
             HorizontalDivider()
@@ -183,7 +194,7 @@ private fun PlacementSheet(
             RotateRow("X", p.rotationX) { onChange(p.copy(rotationX = it)) }
             RotateRow("Y", p.rotationY) { onChange(p.copy(rotationY = it)) }
             RotateRow("Z", p.rotationZ) { onChange(p.copy(rotationZ = it)) }
-            LabeledSlider("Turn on the bed", "${p.rotationZ.roundToInt()}°", p.rotationZ, -180f..180f) {
+            LabeledSlider("Поворот на столе", "${p.rotationZ.roundToInt()}°", p.rotationZ, -180f..180f) {
                 onChange(p.copy(rotationZ = it.roundToInt().toFloat()))
             }
             HorizontalDivider()
@@ -197,10 +208,10 @@ private fun PlacementSheet(
             }
             if (bed != null) {
                 HorizontalDivider()
-                LabeledSlider("Position X", "%.1f mm".format(p.centerX), p.centerX, bed.minX..bed.maxX) {
+                LabeledSlider("Положение X", "%.1f мм".format(p.centerX), p.centerX, bed.minX..bed.maxX) {
                     onChange(p.copy(centerX = it))
                 }
-                LabeledSlider("Position Y", "%.1f mm".format(p.centerY), p.centerY, bed.minY..bed.maxY) {
+                LabeledSlider("Положение Y", "%.1f мм".format(p.centerY), p.centerY, bed.minY..bed.maxY) {
                     onChange(p.copy(centerY = it))
                 }
             }
@@ -208,7 +219,7 @@ private fun PlacementSheet(
                 OutlinedButton(onClick = onCenter) { Text("В центр") }
                 OutlinedButton(onClick = {
                     onChange(Placement(centerX = bed?.centerX ?: p.centerX, centerY = bed?.centerY ?: p.centerY))
-                }) { Text("Reset") }
+                }) { Text("Сбросить") }
                 Spacer(Modifier.weight(1f))
                 Button(onClick = onDismiss) { Text("Готово") }
             }

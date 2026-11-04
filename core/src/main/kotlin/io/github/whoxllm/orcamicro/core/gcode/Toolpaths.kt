@@ -25,6 +25,16 @@ enum class Feature(val label: String, val rgb: Int) {
     CUSTOM("Custom", 0x5ED194),
     OTHER("Other", 0xE6B3B3);
 
+    val labelRu: String get() = when(this) {
+        OUTER_WALL -> "Внешняя стенка"; INNER_WALL -> "Внутренняя стенка"; OVERHANG_WALL -> "Нависание"
+        SPARSE_INFILL -> "Разреженное заполнение"; SOLID_INFILL -> "Сплошное заполнение"
+        TOP_SURFACE -> "Верхняя поверхность"; BOTTOM_SURFACE -> "Нижняя поверхность"
+        BRIDGE -> "Мост"; INTERNAL_BRIDGE -> "Внутренний мост"; GAP_FILL -> "Заполнение зазоров"
+        IRONING -> "Разглаживание"; SKIRT -> "Юбка"; BRIM -> "Кайма"; SUPPORT -> "Поддержки"
+        SUPPORT_INTERFACE -> "Контактный слой поддержек"; SUPPORT_TRANSITION -> "Переход поддержек"
+        PRIME_TOWER -> "Башня очистки"; CUSTOM -> "Пользовательский"; OTHER -> "Прочее"
+    }
+
     companion object {
         private val byLabel: Map<String, Feature> = buildMap {
             for (f in Feature.entries) put(f.label.lowercase(), f)

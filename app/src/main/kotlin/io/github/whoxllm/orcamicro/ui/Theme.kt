@@ -7,6 +7,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
+import io.github.whoxllm.orcamicro.R
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -23,16 +26,17 @@ private val DarkColors = darkColorScheme(
     background = Color(0xFF242424), surface = Color(0xFF2B2B2B), surfaceVariant = Color(0xFF36363B),
     onSurface = Color(0xFFFAFAFA), onSurfaceVariant = Color(0xFFB2B3B5), outlineVariant = Color(0xFF4A4A4A),
 )
+private val Inter = FontFamily(Font(R.font.inter, FontWeight.Normal), Font(R.font.inter, FontWeight.Medium), Font(R.font.inter, FontWeight.SemiBold))
 private val CompactType = Typography(
-    titleLarge = TextStyle(fontSize = 20.sp, lineHeight = 25.sp, fontWeight = FontWeight.Medium),
-    titleMedium = TextStyle(fontSize = 15.sp, lineHeight = 20.sp, fontWeight = FontWeight.Medium),
-    titleSmall = TextStyle(fontSize = 14.sp, lineHeight = 19.sp, fontWeight = FontWeight.Medium),
-    bodyLarge = TextStyle(fontSize = 14.sp, lineHeight = 20.sp),
-    bodyMedium = TextStyle(fontSize = 13.sp, lineHeight = 19.sp),
-    bodySmall = TextStyle(fontSize = 12.sp, lineHeight = 17.sp),
-    labelLarge = TextStyle(fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.Medium),
-    labelMedium = TextStyle(fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Medium),
-    labelSmall = TextStyle(fontSize = 11.sp, lineHeight = 15.sp),
+    titleLarge = TextStyle(fontFamily = Inter, fontSize = 20.sp, lineHeight = 25.sp, fontWeight = FontWeight.Medium),
+    titleMedium = TextStyle(fontFamily = Inter, fontSize = 15.sp, lineHeight = 20.sp, fontWeight = FontWeight.Medium),
+    titleSmall = TextStyle(fontFamily = Inter, fontSize = 14.sp, lineHeight = 19.sp, fontWeight = FontWeight.Medium),
+    bodyLarge = TextStyle(fontFamily = Inter, fontSize = 14.sp, lineHeight = 20.sp),
+    bodyMedium = TextStyle(fontFamily = Inter, fontSize = 15.sp, lineHeight = 21.sp),
+    bodySmall = TextStyle(fontFamily = Inter, fontSize = 13.sp, lineHeight = 19.sp),
+    labelLarge = TextStyle(fontFamily = Inter, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.Medium),
+    labelMedium = TextStyle(fontFamily = Inter, fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Medium),
+    labelSmall = TextStyle(fontFamily = Inter, fontSize = 12.sp, lineHeight = 17.sp),
 )
 @Composable
 fun OrcaMicroTheme(content: @Composable () -> Unit) {

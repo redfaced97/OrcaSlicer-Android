@@ -82,14 +82,14 @@ fun SettingsScreen(state: UiState, viewModel: MainViewModel) {
                 title = { Text("Параметры") },
                 windowInsets = WindowInsets(0, 0, 0, 0),
                 navigationIcon = { IconButton(onClick = viewModel::back) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "На стол") } },
-                actions = { IconButton(onClick = { confirmReset = true }) { Icon(Icons.Default.Refresh, "Сбросить вкладку") } },
+                actions = { IconButton(onClick = { confirmReset = true }) { OrcaIcon(OrcaAction.Refresh, "Сбросить вкладку") } },
             )
         },
         bottomBar = {
             Surface(tonalElevation = 3.dp) {
                 Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedButton(onClick = { transferType = type; import.launch(arrayOf("application/json", "application/octet-stream", "text/plain")) }, modifier = Modifier.weight(1f)) { Text("Импорт", maxLines = 1) }
-                    Button(onClick = { transferType = type; export.launch("OrcaPocket-${type.orcaName}.json") }, modifier = Modifier.weight(1f)) { Text("Экспорт", maxLines = 1) }
+                    Button(onClick = { transferType = type; export.launch("OrcaSlicer-${type.orcaName}.json") }, modifier = Modifier.weight(1f)) { Text("Экспорт", maxLines = 1) }
                 }
             }
         },
@@ -137,7 +137,7 @@ fun SettingsScreen(state: UiState, viewModel: MainViewModel) {
                             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
                             Text(option.labelRu, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
-                            val summary = if (value == null) "По умолчанию" else OrcaOptions.display(value).ifBlank { "Пусто" }
+                            val summary = if (value == null) "По умолчанию" else OrcaOptions.display(option, value).ifBlank { "Пусто" }
                             Text(summary, style = MaterialTheme.typography.bodyMedium, color = if (option.key in keysChanged) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.widthIn(max = 112.dp), maxLines = 2, overflow = TextOverflow.Ellipsis)
                             if ("${type.name}/${option.key}" in state.favorites) Icon(Icons.Default.Star, "Избранное", Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
                         }
@@ -185,7 +185,7 @@ private fun OptionEditor(option: OrcaOption, value: JsonElement?, baseValue: Jso
             if (value == null) Text("По умолчанию в движке. Сохраните значение, чтобы изменить его.", style = MaterialTheme.typography.bodySmall)
             ValueFields(option, draft, value, "Значение") { draft = it; error = null }
             error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
-            if (baseValue != null) Text("В исходном профиле: ${OrcaOptions.display(baseValue).take(160)}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (baseValue != null) Text("В исходном профиле: ${OrcaOptions.display(option, baseValue).take(160)}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
                 OutlinedButton(onClick = onReset, enabled = changed, modifier = Modifier.weight(1f)) { Text("Вернуть") }
                 Button(onClick = {
@@ -210,7 +210,7 @@ private fun ValueFields(option: OrcaOption, value: JsonElement, original: JsonEl
                                 onChange(JsonArray(value.toMutableList().also { it[index] = changed }))
                             }
                         }
-                        if (value.size > 1) IconButton(onClick = { onChange(JsonArray(value.filterIndexed { i, _ -> i != index })) }) { Icon(Icons.Default.Delete, "Удалить значение ${index + 1}") }
+                        if (value.size > 1) IconButton(onClick = { onChange(JsonArray(value.filterIndexed { i, _ -> i != index })) }) { OrcaIcon(OrcaAction.Remove, "Удалить значение ${index + 1}") }
                     }
                 }
             }
@@ -229,14 +229,14 @@ private fun ValueFields(option: OrcaOption, value: JsonElement, original: JsonEl
                 }
             } else {
                 if (option.choices.isNotEmpty()) LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(option.choices) { choice -> FilterChip(selected = text == choice, onClick = { onChange(JsonPrimitive(choice)) }, label = { Text(choice) }) }
+                    items(option.choices) { choice -> FilterChip(selected = text == choice, onClick = { onChange(JsonPrimitive(choice)) }, label = { Text(option.choiceLabel(choice)) }) }
                 }
-                OutlinedTextField(
+                if(option.valueType != "coEnum" || option.choices.isEmpty()) OutlinedTextField(
                     value = text, onValueChange = { onChange(JsonPrimitive(it)) },
                     label = { Text(label) }, placeholder = if (inherited) { { Text("По умолчанию") } } else null,
                     suffix = if (option.unit.isNotBlank()) { { Text(option.unit) } } else null,
                     modifier = Modifier.fillMaxWidth(), minLines = if (option.isGcode) 4 else 1, maxLines = if (option.isGcode) 10 else 4,
-                    textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = if (option.isGcode) FontFamily.Monospace else FontFamily.Default),
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = if (option.isGcode) FontFamily.Monospace else MaterialTheme.typography.bodyMedium.fontFamily),
                     keyboardOptions = KeyboardOptions(keyboardType = if (option.isNumber) KeyboardType.Decimal else KeyboardType.Text),
                 )
             }

@@ -65,6 +65,8 @@ import kotlin.math.roundToInt
 
 @Composable
 fun PreviewScreen(state: UiState, viewModel: MainViewModel) {
+    var showDev by remember { mutableStateOf(false) }
+    val renderer = remember { ToolpathRenderer() }
     val result = state.lastResult
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
@@ -91,10 +93,13 @@ fun PreviewScreen(state: UiState, viewModel: MainViewModel) {
         var singleLayer by remember { mutableStateOf(false) }
         var travels by remember { mutableStateOf(false) }
         var hidden by remember { mutableStateOf(emptySet<Feature>()) }
-        val renderer = remember { ToolpathRenderer() }
         val framed = remember { arrayOfNulls<Any>(1) }
 
         Column(Modifier.fillMaxSize().padding(padding)) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("Предпросмотр траекторий", Modifier.weight(1f), style = MaterialTheme.typography.labelMedium)
+                androidx.compose.material3.TextButton(onClick = { showDev = true }) { OrcaIcon(OrcaAction.Settings, null); Text("Dev menu", Modifier.padding(start = 6.dp)) }
+            }
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 SceneView(renderer, Modifier.fillMaxSize()) { r ->
                     val bed = state.bed
@@ -102,6 +107,8 @@ fun PreviewScreen(state: UiState, viewModel: MainViewModel) {
                         r.camera.frame(bed.centerX, bed.centerY, 0f, max(bed.width, bed.depth) * 0.6f)
                         framed[0] = result
                     }
+                    r.setRenderOptions(state.renderOptions)
+                    r.modelColor = state.modelRgb()
                     r.setBed(bed, state.printableHeight)
                     r.setToolpaths(toolpaths)
                     r.setView(PreviewView(layer, singleLayer, travels, hidden))
@@ -135,7 +142,7 @@ fun PreviewScreen(state: UiState, viewModel: MainViewModel) {
                             FilterChip(
                                 selected = feature !in hidden,
                                 onClick = { hidden = if (feature in hidden) hidden - feature else hidden + feature },
-                                label = { Text(feature.label) },
+                                label = { Text(feature.labelRu) },
                                 leadingIcon = {
                                     Box(Modifier.size(10.dp).clip(CircleShape).background(Color(0xFF000000 or feature.rgb.toLong())))
                                 },
@@ -161,6 +168,7 @@ fun PreviewScreen(state: UiState, viewModel: MainViewModel) {
             }
         }
     }
+    if(showDev) DevMenu(state, viewModel, renderer) { showDev = false }
 }
 
 @Composable
@@ -168,8 +176,8 @@ private fun StatsCard(stats: GcodeStats, layers: Int, modifier: Modifier = Modif
     Surface(modifier = modifier, shape = MaterialTheme.shapes.medium, tonalElevation = 3.dp, color = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f)) {
         Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
             stats.printSeconds?.let { Text("Время  ${formatDuration(it)}", style = MaterialTheme.typography.labelLarge) }
-            val length = stats.filamentMillimetres?.let { "%.2f m".format(it / 1000.0) }
-            val weight = stats.filamentGrams?.let { "%.1f g".format(it) }
+            val length = stats.filamentMillimetres?.let { "%.2f м".format(it / 1000.0) }
+            val weight = stats.filamentGrams?.let { "%.1f г".format(it) }
             val filament = listOfNotNull(length, weight).joinToString("  ·  ")
             if (filament.isNotEmpty()) Text("Пластик  $filament", style = MaterialTheme.typography.labelLarge)
             Text("$layers слоёв", style = MaterialTheme.typography.labelMedium)
@@ -181,9 +189,9 @@ private fun formatDuration(seconds: Long): String {
     val h = seconds / 3600
     val m = (seconds % 3600) / 60
     return when {
-        h > 0 -> "${h}h ${m}m"
-        m > 0 -> "${m}m ${seconds % 60}s"
-        else -> "${seconds}s"
+        h > 0 -> "${h}ч ${m}мин"
+        m > 0 -> "${m}мин ${seconds % 60}с"
+        else -> "${seconds}с"
     }
 }
 

@@ -37,7 +37,15 @@ class MoonrakerClient(connection: PrinterConnection) {
         return try {
             val result = readResponse(http)["result"]?.jsonObject ?: error("Адрес ответил без данных Moonraker")
             val state = result["klippy_state"]?.jsonPrimitive?.content.orEmpty()
-            if (state == "ready") "Klipper готов" else "Moonraker подключён · $state"
+            if (state == "ready") "Klipper готов" else {
+                val label = when(state) { "error" -> "ошибка Klipper"; "shutdown" -> "Klipper остановлен"; "startup" -> "Klipper запускается"; "disconnected" -> "нет связи с Klipper"; else -> state }
+                val detail = if(state in setOf("error","shutdown")) runCatching {
+                    val printer=connect("/printer/info")
+                    try { readResponse(printer)["result"]?.jsonObject?.get("state_message")?.jsonPrimitive?.content?.lineSequence()?.firstOrNull() }
+                    finally { printer.disconnect() }
+                }.getOrNull() else null
+                "Moonraker подключён · $label" + (detail?.let { "\n$it" } ?: "")
+            }
         } finally { http.disconnect() }
     }
 

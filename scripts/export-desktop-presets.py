@@ -11,8 +11,9 @@ parser.add_argument('--output', type=Path, default=Path(__file__).resolve().pare
 parser.add_argument('--include-network-address', action='store_true', help='Include printer host/web addresses, still excluding credentials')
 args = parser.parse_args()
 index = {}
-user = args.config / 'user/default'
-for folder in [args.resources / 'profiles', user]:
+users = sorted((args.config / 'user').iterdir(), key=lambda p: (p.name != 'default',p.name)) if (args.config / 'user').is_dir() else []
+users = [p for p in users if p.is_dir()]
+for folder in [args.resources / 'profiles', *users]:
     for path in sorted(folder.rglob('*.json')):
         kind = next((part for part in path.relative_to(folder).parts[:-1] if part in ('machine', 'filament', 'process')), None)
         if kind is None:
@@ -38,14 +39,22 @@ def resolve(kind, name, seen=()):
     return {**base, **data}
 
 args.output.mkdir(parents=True, exist_ok=True)
+bundle = []
 for kind in ('machine', 'process', 'filament'):
-    for number, path in enumerate(sorted((user / kind).glob('*.json')), 1):
-        raw = json.loads(path.read_text())
-        data = resolve(kind, raw.get('name', path.stem))
+    own = {}
+    for user in users:
+        for path in sorted((user / kind).rglob('*.json')):
+            raw = json.loads(path.read_text(encoding='utf-8-sig'))
+            own[raw.get('name', path.stem)] = raw
+    for number, (name, raw) in enumerate(own.items(), 1):
+        data = resolve(kind, name)
         for key in private_keys | bookkeeping:
             data.pop(key, None)
-        data.update(type=kind, name=raw.get('name', path.stem), **{'from': 'User'})
+        data.update(type=kind, name=name, **{'from': 'User'})
+        bundle.append(data)
         destination = args.output / f'{kind}-{number}.json'
         destination.write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n')
         print(f'{kind}: {data["name"]} -> {destination.name}')
+(args.output / 'user-presets.json').write_text(json.dumps({'format': 'OrcaSlicer-Android-presets-1', 'profiles': bundle}, ensure_ascii=False, indent=2) + '\n')
+print(f'Bundle: user-presets.json ({len(bundle)} presets)')
 print('Private output:', args.output)

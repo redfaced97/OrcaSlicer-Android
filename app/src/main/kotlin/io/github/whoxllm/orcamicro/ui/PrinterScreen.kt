@@ -35,19 +35,18 @@ fun PrinterScreen(state: UiState, viewModel: MainViewModel) {
     val context = LocalContext.current
     fun save() = viewModel.saveConnection(PrinterConnection(api, web, apiKey))
     Scaffold(
-        topBar = { DesktopHeader(state, viewModel) },
+        topBar = { DesktopHeader(state, viewModel) {
+            IconButton(onClick = { showWeb = !showWeb }) { OrcaIcon(OrcaAction.Settings, if(showWeb) "Настроить подключение" else "Открыть веб-интерфейс") }
+            IconButton(onClick = { refresh++; viewModel.testPrinter() }, enabled = !state.connecting) { OrcaIcon(OrcaAction.Refresh, "Обновить принтер") }
+        } },
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = { showWeb = !showWeb }, shape = MaterialTheme.shapes.small, modifier = Modifier.weight(1f)) { Text(if (showWeb) "Подключение" else "Веб-интерфейс") }
-                if (showWeb) OutlinedButton(onClick = { refresh++ }, shape = MaterialTheme.shapes.small) { Text("Обновить") }
-            }
             if (showWeb && state.connection.apiUrl.isNotBlank()) {
                 key(state.connection.webUrl, refresh) { EmbeddedKlipper(state.connection, Modifier.weight(1f).fillMaxWidth()) }
             } else {
                 Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("Klipper / Moonraker", style = MaterialTheme.typography.titleMedium)
+                    Text("Подключение · Klipper / Moonraker", style = MaterialTheme.typography.titleMedium)
                     OutlinedTextField(api, { api = it }, label = { Text("Адрес Moonraker") }, placeholder = { Text("http://printer.local:7125") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(web, { web = it }, label = { Text("Mainsail / Fluidd") }, placeholder = { Text("http://printer.local") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(apiKey, { apiKey = it }, label = { Text("API-ключ, если требуется") }, visualTransformation = PasswordVisualTransformation(), singleLine = true, modifier = Modifier.fillMaxWidth())

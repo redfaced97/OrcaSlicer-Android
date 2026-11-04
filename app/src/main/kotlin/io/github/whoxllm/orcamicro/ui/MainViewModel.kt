@@ -41,6 +41,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonPrimitive
+import io.github.whoxllm.orcamicro.core.profiles.UserPreset
+import io.github.whoxllm.orcamicro.core.profiles.UserPresets
+import io.github.whoxllm.orcamicro.core.settings.RenderOptions
+import io.github.whoxllm.orcamicro.core.settings.Russian
 import java.io.File
 
 /** Raw (unedited) presets for the current selection. */
@@ -85,13 +91,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     edits = if (firstRun) PresetEdits() else saved.edits,
                     favorites = saved.favorites,
                     connection = saved.connection,
+                    userPresets = UserPresets.merge(saved.userPresets, listOfNotNull(
+                        saved.edits.importedMachine?.let { UserPreset(PresetType.MACHINE, it) },
+                        saved.edits.importedProcess?.let { UserPreset(PresetType.PROCESS, it) },
+                        saved.edits.importedFilament?.let { UserPreset(PresetType.FILAMENT, it) })),
+                    renderOptions = saved.renderOptions,
                     screen = if (firstRun) Screen.PRESETS else Screen.PLATE,
                 )
             }
             refreshInputs()
             restoreModel(saved)
         } catch (e: Exception) {
-            _state.update { it.copy(ready = true, loadError = "Could not load the printer profiles: ${e.message}") }
+            _state.update { it.copy(ready = true, loadError = "Не удалось загрузить профили принтера: ${e.message}") }
         }
     }
 
@@ -175,7 +186,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 refreshInputs()
                 persist()
             } catch (e: Exception) {
-                showMessage("Could not load that preset: ${e.message}")
+                showMessage("Не удалось загрузить профиль: ${e.message}")
             }
         }
     }
@@ -201,9 +212,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val edits = state.edits
             state.copy(
                 edits = when (type) {
-                    PresetType.MACHINE -> edits.copy(machine = emptyMap(), rawMachine = emptyMap(), importedMachine = null)
-                    PresetType.PROCESS -> edits.copy(process = emptyMap(), rawProcess = emptyMap(), importedProcess = null)
-                    PresetType.FILAMENT -> edits.copy(filament = emptyMap(), rawFilament = emptyMap(), importedFilament = null)
+                    PresetType.MACHINE -> edits.copy(machine = emptyMap(), rawMachine = emptyMap())
+                    PresetType.PROCESS -> edits.copy(process = emptyMap(), rawProcess = emptyMap())
+                    PresetType.FILAMENT -> edits.copy(filament = emptyMap(), rawFilament = emptyMap())
                 },
             )
         }
@@ -238,43 +249,83 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         persist()
     }
 
+    fun selectUserPreset(preset: UserPreset) {
+        _state.update { state -> state.copy(edits = activate(state.edits, preset), lastResult = null) }
+        refreshInputs()
+        persist()
+        if (preset.type == PresetType.MACHINE && _state.value.connection.apiUrl.isBlank()) {
+            preset.preset.string("print_host")?.takeIf { it.isNotBlank() }?.let { host ->
+                saveConnection(PrinterConnection(host, preset.preset.string("print_host_webui").orEmpty().ifBlank { host }))
+            }
+        }
+    }
+
+    private fun activate(e: PresetEdits, p: UserPreset): PresetEdits = when (p.type) {
+        PresetType.MACHINE -> e.copy(machine = emptyMap(), rawMachine = emptyMap(), importedMachine = p.preset)
+        PresetType.PROCESS -> e.copy(process = emptyMap(), rawProcess = emptyMap(), importedProcess = p.preset)
+        PresetType.FILAMENT -> e.copy(filament = emptyMap(), rawFilament = emptyMap(), importedFilament = p.preset)
+    }
+
+    fun saveUserPreset(type: PresetType, name: String) {
+        val inputs = _state.value.inputs ?: return
+        val clean = name.trim()
+        if (clean.isEmpty()) return
+        val base = when(type) { PresetType.MACHINE -> inputs.machine; PresetType.PROCESS -> inputs.process; PresetType.FILAMENT -> inputs.filament }
+        val p = UserPreset(type, JsonObject(base + mapOf("name" to JsonPrimitive(clean), "from" to JsonPrimitive("User"))))
+        _state.update { it.copy(userPresets = UserPresets.merge(it.userPresets, listOf(p))) }
+        selectUserPreset(p)
+        showMessage("Профиль «$clean» сохранён в Мои профили")
+    }
+
+    fun deleteUserPreset(p: UserPreset) {
+        _state.update { it.copy(userPresets = it.userPresets.filterNot { entry -> entry.id == p.id }) }
+        // An active preset remains a standalone base until another preset is selected.
+        persist()
+    }
+
     fun importPreset(uri: Uri, type: PresetType) {
         viewModelScope.launch {
             try {
+                val before = _state.value
                 val imported = withContext(Dispatchers.IO) {
                     val text = app.contentResolver.openInputStream(uri)?.bufferedReader()?.use { reader ->
-                        val buffer = CharArray(4 * 1024 * 1024 + 1)
+                        val buffer = CharArray(16 * 1024 * 1024 + 1)
                         var size = 0
-                        while (size < buffer.size) {
-                            val n = reader.read(buffer, size, buffer.size - size)
-                            if (n < 0) break
-                            size += n
-                        }
-                        require(size < buffer.size) { "Профиль превышает 4 МБ" }
+                        while (size < buffer.size) { val n = reader.read(buffer, size, buffer.size - size); if (n < 0) break; size += n }
+                        require(size < buffer.size) { "Набор превышает 16 МБ" }
                         String(buffer, 0, size)
                     } ?: error("Файл недоступен")
-                    profiles.importPreset(text, type, _state.value.selection?.vendor.orEmpty(), listOfNotNull(presetFor(type)))
+                    UserPresets.import(text, type) { kind, parent ->
+                        before.userPresets.firstOrNull { it.type == kind && it.name == parent }?.preset
+                            ?: profiles.importPreset(JsonObject(mapOf("name" to JsonPrimitive("resolve"), "inherits" to JsonPrimitive(parent))).toString(), kind, before.selection?.vendor.orEmpty(), listOfNotNull(presetFor(kind)))
+                    }
                 }
                 _state.update { s ->
-                    val e = s.edits
-                    s.copy(edits = when (type) {
-                        PresetType.MACHINE -> e.copy(machine = emptyMap(), rawMachine = emptyMap(), importedMachine = imported)
-                        PresetType.PROCESS -> e.copy(process = emptyMap(), rawProcess = emptyMap(), importedProcess = imported)
-                        PresetType.FILAMENT -> e.copy(filament = emptyMap(), rawFilament = emptyMap(), importedFilament = imported)
-                    }, lastResult = null)
+                    var e = s.edits
+                    PresetType.entries.forEach { kind -> imported.firstOrNull { it.type == kind }?.let { e = activate(e, it) } }
+                    s.copy(userPresets = UserPresets.merge(s.userPresets, imported), edits = e, lastResult = null)
                 }
                 refreshInputs()
                 persist()
-                showMessage("Профиль импортирован")
-                if (type == PresetType.MACHINE && _state.value.connection.apiUrl.isBlank()) {
-                    imported.string("print_host")?.takeIf { it.isNotBlank() }?.let { host ->
-                        saveConnection(PrinterConnection(apiUrl = host, webUrl = imported.string("print_host_webui").orEmpty().ifBlank { host }))
-                    }
-                }
-            } catch (e: Exception) {
-                showMessage("Не удалось импортировать: ${e.message}")
-            }
+                imported.firstOrNull { it.type == PresetType.MACHINE }?.let { selectUserPreset(it) }
+                showMessage("Импортировано профилей: ${imported.size}. Они доступны в «Мои профили»")
+            } catch (e: Exception) { showMessage("Не удалось импортировать: ${e.message}") }
         }
+    }
+
+    fun setModelColor(hex: String) {
+        val value = hex.removePrefix("#").uppercase()
+        if (!value.matches(Regex("[0-9A-F]{6}"))) { return }
+        setRawEdit(PresetType.FILAMENT, "default_filament_colour", JsonArray(listOf(JsonPrimitive("#$value"))))
+    }
+
+    fun setRenderOptions(options: RenderOptions) {
+        _state.update { it.copy(renderOptions = options) }; persist()
+    }
+
+    fun moveModelBy(dx: Float, dy: Float) {
+        val m = _state.value.model ?: return
+        updatePlacement(m.placement.copy(centerX = m.placement.centerX + dx, centerY = m.placement.centerY + dy), false)
     }
 
     fun exportPreset(uri: Uri, type: PresetType) {
@@ -304,7 +355,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val (name, mesh) = withContext(Dispatchers.IO) {
                     val bytes = app.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                        ?: throw StlFormatException("Could not open the file")
+                        ?: throw StlFormatException("Не удалось открыть файл")
                     val mesh = StlReader.read(bytes)
                     store.modelFile.writeBytes(bytes)
                     displayName(uri) to mesh
@@ -313,11 +364,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _state.update { it.copy(lastResult = null) }
                 persist()
             } catch (e: StlFormatException) {
-                showMessage("That file is not a usable STL: ${e.message}")
+                showMessage("Не удалось прочитать STL: ${e.message}")
             } catch (e: OutOfMemoryError) {
-                showMessage("That model is too large to load on this device")
+                showMessage("Модель слишком большая для этого устройства")
             } catch (e: Exception) {
-                showMessage("Could not open the model: ${e.message}")
+                showMessage("Не удалось открыть модель: ${e.message}")
             }
         }
     }
@@ -345,8 +396,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _state.update { it.copy(model = model) }
     }
 
-    fun setPlacement(placement: Placement) {
+    fun finishModelMove() { persist() }
+
+    fun setPlacement(placement: Placement) = updatePlacement(placement, true)
+
+    private fun updatePlacement(placement: Placement, save: Boolean) {
         val current = _state.value.model ?: return
+        val previous = current.placement
+        if (placementJob?.isActive != true && placement.rotationX == previous.rotationX && placement.rotationY == previous.rotationY && placement.rotationZ == previous.rotationZ && placement.scalePercent == previous.scalePercent) {
+            val moved = current.copy(placement = placement, offsetX = current.offsetX+placement.centerX-previous.centerX, offsetY = current.offsetY+placement.centerY-previous.centerY)
+            _state.update { with -> with.copy(model = withFit(moved, with.bed, with.printableHeight)) }
+            if(save) persist()
+            return
+        }
         _state.update { it.copy(model = current.copy(placement = placement)) }
         placementJob?.cancel()
         placementJob = viewModelScope.launch {
@@ -379,10 +441,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun withFit(model: ModelState, bed: BedShape?, height: Float): ModelState {
         if (bed == null) return model
-        val b = model.placed.bounds()
+        val b = model.placedBounds
         val margin = 0.01f
-        val fits = b.min.x >= bed.minX - margin && b.max.x <= bed.maxX + margin &&
-            b.min.y >= bed.minY - margin && b.max.y <= bed.maxY + margin &&
+        val fits = b.min.x + model.offsetX >= bed.minX - margin && b.max.x + model.offsetX <= bed.maxX + margin &&
+            b.min.y + model.offsetY >= bed.minY - margin && b.max.y + model.offsetY <= bed.maxY + margin &&
             b.max.z <= height + margin
         return model.copy(fits = fits)
     }
@@ -391,12 +453,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun slice() {
         val state = _state.value
-        val model = state.model ?: return showMessage("Open an STL file first")
+        val model = state.model ?: return showMessage("Сначала откройте STL-модель")
         val inputs = state.inputs ?: return
-        if (!model.fits) return showMessage("The model does not fit this printer's build volume. Move or scale it first.")
+        if (!model.fits) return showMessage("Модель выходит за границы области печати. Переместите её или уменьшите масштаб.")
         if (state.slice is SliceState.Running) return
         sliceJob = viewModelScope.launch {
-            _state.update { it.copy(slice = SliceState.Running(0, "Preparing")) }
+            _state.update { it.copy(slice = SliceState.Running(0, "Подготовка")) }
             val job = withContext(Dispatchers.IO) { SliceJob.create(app, model.mesh, model.placement, inputs) }
             val resources = withContext(Dispatchers.IO) { EngineResources.ensure(app) }
             var response: EngineResponse? = null
@@ -404,7 +466,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             engine.slice(job.request(resources, model.placement).toJson()).collect { event ->
                 when (event) {
                     is EngineEvent.Progress -> _state.update {
-                        it.copy(slice = SliceState.Running(event.progress.percent, event.progress.text))
+                        it.copy(slice = SliceState.Running(event.progress.percent, Russian.text(event.progress.text)))
                     }
                     is EngineEvent.Finished -> {
                         response = event.response
@@ -416,8 +478,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
             val result = response
             when {
-                crashed -> fail("The slicing engine stopped unexpectedly.", job.logTail())
-                result == null -> fail("The slicing engine did not answer.", job.logTail())
+                crashed -> fail("Движок нарезки неожиданно остановился.", job.logTail())
+                result == null -> fail("Движок нарезки не ответил.", job.logTail())
                 !result.ok -> fail(explain(result), job.logTail())
                 else -> showPreview(job, result, model.name)
             }
@@ -425,26 +487,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private suspend fun showPreview(job: SliceJob, result: EngineResponse, modelName: String) {
-        _state.update { it.copy(slice = SliceState.Running(100, "Preparing preview")) }
+        _state.update { it.copy(slice = SliceState.Running(100, "Подготовка предпросмотра")) }
         val gcode = result.gcodePath?.let { File(it) }?.takeIf { it.isFile } ?: job.gcode
         try {
             val toolpaths = withContext(Dispatchers.Default) { gcode.bufferedReader().use { GcodeParser.parse(it) } }
-            val done = SliceState.Done(gcode, toolpaths, result.warnings, modelName)
+            val done = SliceState.Done(gcode, toolpaths, result.warnings.map(Russian::text), modelName)
             _state.update { it.copy(slice = SliceState.Idle, lastResult = done, screen = Screen.PREVIEW) }
         } catch (e: OutOfMemoryError) {
-            fail("The G-code was written but is too large to preview on this device. You can still export it.", null)
+            fail("G-code создан, но слишком велик для предпросмотра на этом устройстве.", null)
         }
     }
 
     private fun explain(result: EngineResponse): String {
         val stage = when (result.stage) {
-            "config" -> "The print settings were rejected"
-            "model" -> "The model could not be read"
-            "validate" -> "OrcaSlicer cannot print this"
-            "export" -> "Writing the G-code failed"
-            else -> "Slicing failed"
+            "config" -> "Параметры печати отклонены"
+            "model" -> "Не удалось прочитать модель"
+            "validate" -> "OrcaSlicer не может напечатать эту модель"
+            "export" -> "Ошибка записи G-code"
+            else -> "Ошибка нарезки"
         }
-        return "$stage: ${result.error ?: "unknown error"}"
+        return "$stage: ${Russian.text(result.error ?: "неизвестная ошибка")}"
     }
 
     private fun fail(message: String, details: String?) {
@@ -467,11 +529,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 withContext(Dispatchers.IO) {
                     app.contentResolver.openOutputStream(uri)?.use { out -> result.gcode.inputStream().use { it.copyTo(out) } }
-                        ?: throw IllegalStateException("Could not open the destination")
+                        ?: throw IllegalStateException("Не удалось открыть место сохранения")
                 }
-                showMessage("G-code saved")
+                showMessage("G-code сохранён")
             } catch (e: Exception) {
-                showMessage("Saving failed: ${e.message}")
+                showMessage("Ошибка сохранения: ${e.message}")
             }
         }
     }
@@ -557,7 +619,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun persist() {
         val state = _state.value
-        val saved = SavedState(state.selection, state.edits, state.model?.name, state.model?.placement, state.favorites, state.connection)
+        val saved = SavedState(state.selection, state.edits, state.model?.name, state.model?.placement, state.favorites, state.connection, state.userPresets, state.renderOptions)
         saves.trySend(saved)
     }
 }

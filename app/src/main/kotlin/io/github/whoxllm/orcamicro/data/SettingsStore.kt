@@ -6,6 +6,8 @@ import io.github.whoxllm.orcamicro.core.profiles.PresetRef
 import io.github.whoxllm.orcamicro.core.settings.PresetEdits
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import io.github.whoxllm.orcamicro.core.profiles.UserPreset
+import io.github.whoxllm.orcamicro.core.settings.RenderOptions
 import java.io.File
 import io.github.whoxllm.orcamicro.core.network.PrinterConnection
 
@@ -27,6 +29,8 @@ data class SavedState(
     val placement: Placement? = null,
     val favorites: Set<String> = emptySet(),
     val connection: PrinterConnection = PrinterConnection(),
+    val userPresets: List<UserPreset> = emptyList(),
+    val renderOptions: RenderOptions = RenderOptions(),
 )
 
 /** Persists [SavedState] as JSON in app storage, and keeps a copy of the current model. */

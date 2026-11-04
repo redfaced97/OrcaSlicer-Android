@@ -95,8 +95,20 @@ for kind, keys in members.items():
         option = definitions.get(key, dict(key=key, label=key, labelRu=key, category='Other', categoryRu='Прочее', valueType='coString'))
         options.append(dict(option, type=kind))
 
+overrides = json.loads((ROOT / 'scripts/ru-overrides.json').read_text())
+for option in options:
+    option['labelRu'] = overrides['labels'].get(option['key'], option['labelRu'])
+    option['descriptionRu'] = overrides['descriptions'].get(option['key'], option.get('descriptionRu', ''))
+    option['categoryRu'] = {'Quality': 'Качество', 'Strength': 'Прочность', 'Support': 'Поддержки', 'Speed': 'Скорость', 'Other': 'Прочее', 'Advanced': 'Расширенные', 'Multimaterial': 'Мультиматериалы'}.get(option.get('category'), option.get('categoryRu', 'Прочее'))
+    option['unit'] = {'Hz': 'Гц', 'g/cm³': 'г/см³', 'layer': 'слой', 'layers': 'слоёв', 'money/h': 'валюта/ч', 'money/kg': 'валюта/кг', 's': 'с'}.get(option.get('unit', ''), option.get('unit', '')).replace('mm', 'мм').replace('/s', '/с').replace('min', 'мин').replace(' or ', ' или ')
+    option['choiceLabelsRu'] = {value: overrides['choices'].get(value, translations.get(value, value)) for value in option.get('choices', [])}
+    if option['key'].startswith(('machine_max_acceleration_', 'machine_max_speed_', 'machine_max_jerk_')):
+        option['valueType'] = 'coFloats'
+        option['unit'] = 'мм/с²' if 'acceleration' in option['key'] else 'мм/с'
 output = ROOT / 'core/src/main/resources/orca-options.json'
 output.parent.mkdir(parents=True, exist_ok=True)
 output.write_text(json.dumps(options, ensure_ascii=False, indent=2) + '\n')
 print(f'{len(options)} options; ' + ', '.join(f'{k}: {sum(x["type"]==k for x in options)}' for k in members))
 print('Catalog SHA-256:', hashlib.sha256(output.read_bytes()).hexdigest())
+
+(ROOT / 'core/src/main/resources/orca-messages-ru.json').write_text(json.dumps(translations, ensure_ascii=False) + '\n')

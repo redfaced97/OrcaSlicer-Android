@@ -10,8 +10,10 @@ import io.github.whoxllm.orcamicro.core.settings.PresetEdits
 import io.github.whoxllm.orcamicro.core.slicing.SliceInputs
 import io.github.whoxllm.orcamicro.data.PresetSelection
 import java.io.File
+import io.github.whoxllm.orcamicro.core.network.PrinterConnection
+import io.github.whoxllm.orcamicro.core.profiles.PresetType
 
-enum class Screen { PLATE, PRESETS, SETTINGS, PREVIEW, ABOUT }
+enum class Screen { PLATE, PRESETS, SETTINGS, PREVIEW, DEVICE, ABOUT }
 
 /** The loaded model: the mesh as read, how it is placed, and the placed result for display. */
 data class ModelState(
@@ -47,4 +49,12 @@ data class UiState(
     val screen: Screen = Screen.PLATE,
     val message: String? = null,
     val favorites: Set<String> = emptySet(),
+    val settingsType: PresetType = PresetType.PROCESS,
+    val presetPicker: PresetType? = null,
+    val connection: PrinterConnection = PrinterConnection(),
+    val printerStatus: String? = null,
+    val connecting: Boolean = false,
+    val uploadPercent: Int? = null,
+    val uploadedFile: String? = null,
+    val uploadError: String? = null,
 )

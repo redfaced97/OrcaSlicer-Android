@@ -28,7 +28,7 @@ abstract class SceneRenderer : GLSurfaceView.Renderer {
     private var bedOutline: GlBuffer? = null
     private var bedDirty = true
 
-    var clearColor: FloatArray = rgba(0x1E2228)
+    var clearColor: FloatArray = rgba(0x454545)
 
     private data class Bed(val shape: BedShape, val height: Float)
 
@@ -82,9 +82,9 @@ abstract class SceneRenderer : GLSurfaceView.Renderer {
             bedDirty = false
         }
         GLES20.glDepthMask(false)
-        drawLines(bedLines!!, rgba(0x3A414C), 1f)
+        drawLines(bedLines!!, rgba(0x686868), 1f)
         GLES20.glDepthMask(true)
-        drawLines(bedOutline!!, rgba(0x8A94A6), lineWidth)
+        drawLines(bedOutline!!, rgba(0xB2B3B5), lineWidth)
     }
 
     /** Draws position-only lines in one colour. */

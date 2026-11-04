@@ -26,7 +26,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "OrcaPocket"
+rootProject.name = "OrcaSlicerAndroid"
 
 include(":core")
 // -PcoreOnly builds just the pure-Kotlin core, for machines without the Android SDK.

@@ -8,6 +8,7 @@ parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--config', type=Path, default=Path.home() / '.config/OrcaSlicer')
 parser.add_argument('--resources', type=Path, required=True, help='Pinned OrcaSlicer resources directory')
 parser.add_argument('--output', type=Path, default=Path(__file__).resolve().parents[1] / 'dist/private-presets')
+parser.add_argument('--include-network-address', action='store_true', help='Include printer host/web addresses, still excluding credentials')
 args = parser.parse_args()
 index = {}
 user = args.config / 'user/default'
@@ -22,6 +23,8 @@ for folder in [args.resources / 'profiles', user]:
 # Network credentials are unnecessary for offline slicing and never leave the desktop.
 private_keys = {'printhost_apikey', 'printhost_password', 'printhost_user', 'printhost_cafile',
                 'print_host', 'print_host_webui', 'printhost_port', 'flashforge_serial_number'}
+if args.include_network_address:
+    private_keys -= {'print_host', 'print_host_webui', 'printhost_port'}
 bookkeeping = {'inherits', 'instantiation', 'setting_id', 'base_id', 'is_custom_defined'}
 
 def resolve(kind, name, seen=()):

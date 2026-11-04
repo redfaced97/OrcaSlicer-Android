@@ -78,4 +78,28 @@ class OrcaOptionsTest {
         val explicit = changed.copy(rawProcess = mapOf("curr_bed_type" to JsonPrimitive("Cool Plate")))
         assertEquals(BedType.COOL, SliceInputs.build(machine, obj("{}"), obj("{}"), explicit).bedType)
     }
+
+    @Test fun `one value is displayed without JSON syntax but remains an array when edited`() {
+        val option = OrcaOptions.all.first { it.key == "nozzle_diameter" }
+        val original = Json.parseToJsonElement("""["0.8"]""")
+        assertEquals("0.8", OrcaOptions.display(original))
+        val draft = JsonArray(listOf(JsonPrimitive("0,6")))
+        assertEquals(Json.parseToJsonElement("""["0.6"]"""), OrcaOptions.parseForm(option, draft, original))
+    }
+
+    @Test fun `independent fields preserve other extruders nested arrays and multiline strings`() {
+        val option = OrcaOptions.all.first { it.key == "nozzle_temperature" }
+        val original = Json.parseToJsonElement("""["210","225","nil"]""")
+        assertEquals("210 · 225 · По умолчанию", OrcaOptions.display(original))
+        val draft = JsonArray(listOf(JsonPrimitive("215"), original.jsonArray[1], original.jsonArray[2]))
+        assertEquals(Json.parseToJsonElement("""["215","225","nil"]"""), OrcaOptions.parseForm(option, draft, original))
+        val gcode = OrcaOption("machine_start_gcode", PresetType.MACHINE, "G-code", valueType = "coStrings")
+        val lines = JsonArray(listOf(JsonPrimitive("G28\n; \"quoted\"")))
+        assertEquals("G28\n; \"quoted\"", OrcaOptions.display(lines))
+        assertEquals(lines, OrcaOptions.parseForm(gcode, lines, lines))
+        val points = OrcaOption("points", PresetType.MACHINE, "Points", valueType = "coPointsGroups")
+        val nested = Json.parseToJsonElement("""[["0x0","220x0"],["0x0","100x0"]]""")
+        assertEquals(nested, OrcaOptions.parseForm(points, nested, nested))
+        assertEquals("Нет значений", OrcaOptions.display(JsonArray(emptyList())))
+    }
 }

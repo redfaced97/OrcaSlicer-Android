@@ -75,17 +75,9 @@ fun PreviewScreen(state: UiState, viewModel: MainViewModel) {
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Просмотр слоёв") },
-                navigationIcon = { IconButton(onClick = viewModel::back) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "На стол") } },
-                actions = {
-                    if (result != null) {
-                        IconButton(onClick = { shareGcode(context, result.gcode, gcodeName(result.modelName)) }) {
-                            Icon(Icons.Default.Share, "Поделиться G-code")
-                        }
-                    }
-                },
-            )
+            DesktopHeader(state, viewModel) {
+                if (result != null) IconButton(onClick = { shareGcode(context, result.gcode, gcodeName(result.modelName)) }) { Icon(Icons.Default.Share, "Поделиться G-code") }
+            }
         },
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
@@ -161,12 +153,9 @@ fun PreviewScreen(state: UiState, viewModel: MainViewModel) {
                         }
                     }
                     }
-                    Button(
-                        onClick = { export.launch(gcodeName(result.modelName)) },
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                    ) {
-                        Icon(Icons.Default.Done, null)
-                        Text("Сохранить G-code", modifier = Modifier.padding(start = 8.dp))
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        androidx.compose.material3.OutlinedButton(onClick = { export.launch(gcodeName(result.modelName)) }, modifier = Modifier.weight(1f), shape = MaterialTheme.shapes.small) { Text("Сохранить") }
+                        Button(onClick = viewModel::uploadLastGcode, modifier = Modifier.weight(1f), enabled = state.uploadPercent == null, shape = MaterialTheme.shapes.small) { Text("Загрузить") }
                     }
                 }
             }

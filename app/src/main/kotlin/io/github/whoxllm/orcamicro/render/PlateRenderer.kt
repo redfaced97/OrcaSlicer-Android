@@ -49,7 +49,7 @@ class PlateRenderer : SceneRenderer() {
     }
 
     private companion object {
-        val MODEL_COLOR = rgba(0x2BB59B)
+        val MODEL_COLOR = rgba(0xE6B83C)
         val OUTSIDE_COLOR = rgba(0xE5484D)
     }
 }

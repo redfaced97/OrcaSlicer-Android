@@ -40,12 +40,17 @@ fun OrcaMicroApp(viewModel: MainViewModel) {
                 else -> {
                     BackHandler(enabled = state.screen != Screen.PLATE) { viewModel.back() }
                     when (state.screen) {
-                        Screen.PLATE -> PlateScreen(state, viewModel)
+                        Screen.PLATE, Screen.SETTINGS -> PlateScreen(state, viewModel)
                         Screen.PRESETS -> PresetsScreen(state, viewModel)
-                        Screen.SETTINGS -> SettingsScreen(state, viewModel)
                         Screen.PREVIEW -> PreviewScreen(state, viewModel)
-                        Screen.ABOUT -> AboutScreen(onBack = viewModel::back)
+                        Screen.DEVICE -> PrinterScreen(state, viewModel)
+                        Screen.ABOUT -> AboutScreen(state, viewModel)
                     }
+                    if (state.uploadPercent != null) AlertDialog(
+                        onDismissRequest = {}, title = { Text("Загрузка G-code") },
+                        text = { Column { LinearProgressIndicator(progress = { state.uploadPercent!! / 100f }, modifier = Modifier.fillMaxWidth()); Text("${state.uploadPercent}%") } }, confirmButton = {},
+                    )
+                    state.uploadError?.let { error -> AlertDialog(onDismissRequest = viewModel::dismissUploadError, title = { Text("Не удалось загрузить") }, text = { Text(error) }, confirmButton = { TextButton(onClick = viewModel::dismissUploadError) { Text("OK") } }) }
                     SliceDialogs(state.slice, onCancel = viewModel::cancelSlice, onDismiss = viewModel::dismissSliceError)
                 }
             }

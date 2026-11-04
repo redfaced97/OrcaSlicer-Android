@@ -39,6 +39,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import io.github.whoxllm.orcamicro.core.profiles.string
+import io.github.whoxllm.orcamicro.core.profiles.PresetType
 import io.github.whoxllm.orcamicro.core.profiles.Catalog
 import io.github.whoxllm.orcamicro.core.profiles.first
 import io.github.whoxllm.orcamicro.core.settings.formatNumber
@@ -51,7 +52,7 @@ private data class PickItem(val key: String, val title: String, val subtitle: St
 fun PresetsScreen(state: UiState, viewModel: MainViewModel) {
     val catalog = state.catalog ?: return
     val selection = state.selection ?: return
-    var picker by rememberSaveable { mutableStateOf<Picker?>(null) }
+    var picker by rememberSaveable { mutableStateOf<Picker?>(when (state.presetPicker) { PresetType.MACHINE -> Picker.VENDOR; PresetType.PROCESS -> Picker.PROCESS; PresetType.FILAMENT -> Picker.FILAMENT; null -> null }) }
     var browsingVendor by rememberSaveable { mutableStateOf(selection.vendor) }
     BackHandler(enabled = picker != null) { picker = if (picker == Picker.PRINTER) Picker.VENDOR else null }
 

@@ -3,65 +3,23 @@ package io.github.whoxllm.orcamicro.ui
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Build
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.Surface
-import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.FilledTonalIconButton
-import androidx.compose.material3.BottomAppBar
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExtendedFloatingActionButton
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.whoxllm.orcamicro.core.mesh.Placement
+import io.github.whoxllm.orcamicro.core.profiles.PresetType
 import io.github.whoxllm.orcamicro.core.profiles.string
 import io.github.whoxllm.orcamicro.core.settings.BedShape
 import io.github.whoxllm.orcamicro.render.PlateRenderer
@@ -71,116 +29,114 @@ import kotlin.math.roundToInt
 
 @Composable
 fun PlateScreen(state: UiState, viewModel: MainViewModel) {
-    val openModel = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        uri?.let { viewModel.openModel(it) }
-    }
+    val openModel = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(viewModel::openModel) }
     var showPlacement by rememberSaveable { mutableStateOf(false) }
+    var profilesVisible by rememberSaveable { mutableStateOf(true) }
+    val shortScreen = LocalConfiguration.current.screenHeightDp < 500
     val snackbar = remember { SnackbarHostState() }
     MessageEffect(state.message, snackbar, viewModel::consumeMessage)
-
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text("OrcaPocket")
-                        Text(
-                            state.model?.name ?: "Стол пуст",
-                            style = MaterialTheme.typography.labelMedium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                },
-                actions = {
-                    if (state.model != null) {
-                        IconButton(onClick = viewModel::removeModel) { Icon(Icons.Default.Delete, "Удалить модель") }
-                    }
-                    IconButton(onClick = { viewModel.navigate(Screen.ABOUT) }) { Icon(Icons.Default.Info, "О приложении") }
-                },
-            )
+            DesktopHeader(state, viewModel) {
+                IconButton(onClick = { if (shortScreen) viewModel.navigate(Screen.PRESETS) else profilesVisible = !profilesVisible }) { Icon(Icons.Default.Menu, "Показать или скрыть профили") }
+            }
         },
         bottomBar = {
-            Surface(tonalElevation = 3.dp) {
-                Column(Modifier.navigationBarsPadding()) {
-                    Button(
-                        onClick = viewModel::slice,
-                        enabled = state.model?.fits == true && state.slice !is SliceState.Running,
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).heightIn(min = 56.dp),
-                    ) {
-                        Icon(Icons.Default.PlayArrow, null)
-                        Text("Нарезать модель", Modifier.padding(start = 8.dp))
+            Surface(tonalElevation = 2.dp) {
+                Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { viewModel.openSettings() }, shape = MaterialTheme.shapes.small, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
+                        Icon(Icons.Default.Settings, null, Modifier.size(18.dp))
+                        Text("Параметры", Modifier.padding(start = 6.dp))
                     }
-                    NavigationBar(windowInsets = WindowInsets(0, 0, 0, 0)) {
-                        NavigationBarItem(selected = true, onClick = { openModel.launch(arrayOf("*/*")) }, icon = { Icon(Icons.Default.Add, null) }, label = { Text("STL") })
-                        NavigationBarItem(selected = false, onClick = { viewModel.navigate(Screen.PRESETS) }, icon = { Icon(Icons.Default.Build, null) }, label = { Text("Профили") })
-                        NavigationBarItem(selected = false, onClick = { viewModel.navigate(Screen.SETTINGS) }, icon = { Icon(Icons.Default.Settings, null) }, label = { Text("Опции", maxLines = 1) })
-                        NavigationBarItem(selected = false, onClick = { viewModel.navigate(Screen.PREVIEW) }, enabled = state.lastResult != null, icon = { Icon(Icons.Default.PlayArrow, null) }, label = { Text("Слои") })
+                    Button(onClick = viewModel::slice, enabled = state.model?.fits == true && state.slice !is SliceState.Running, shape = MaterialTheme.shapes.small, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
+                        Icon(Icons.Default.PlayArrow, null, Modifier.size(20.dp))
+                        Text("Нарезать", Modifier.padding(start = 4.dp))
                     }
                 }
             }
         },
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
-        Box(Modifier.fillMaxSize().padding(padding)) {
-            val renderer = remember { PlateRenderer() }
-            // Plain holder, not state: framing happens in the view update and must not recompose.
-            val framedBed = remember { arrayOfNulls<BedShape>(1) }
-            SceneView(renderer, Modifier.fillMaxSize()) { r ->
-                val bed = state.bed
-                if (bed != null && framedBed[0] != bed) {
-                    r.camera.frame(bed.centerX, bed.centerY, 0f, max(bed.width, bed.depth) * 0.6f)
-                    framedBed[0] = bed
+        Column(Modifier.fillMaxSize().padding(padding)) {
+            if (profilesVisible && !shortScreen) DesktopProfiles(state, viewModel)
+            Surface(color = MaterialTheme.colorScheme.surfaceVariant) {
+                Row(Modifier.fillMaxWidth()) {
+                    PlateTool(Icons.Default.Add, "Добавить", true) { openModel.launch(arrayOf("*/*")) }
+                    PlateTool(Icons.Default.Edit, "Положение", state.model != null) { showPlacement = true }
+                    PlateTool(Icons.Default.Refresh, "В центр", state.model != null) { viewModel.centerModel() }
+                    PlateTool(Icons.Default.Delete, "Удалить", state.model != null) { viewModel.removeModel() }
                 }
-                r.setBed(bed, state.printableHeight)
-                r.setModel(state.model?.placed, state.model?.fits ?: true)
             }
-            PresetSummary(state, onClick = { viewModel.navigate(Screen.PRESETS) }, modifier = Modifier.align(Alignment.TopCenter))
-            val model = state.model
-            if (model == null) {
-                Card(Modifier.align(Alignment.Center).padding(32.dp)) {
-                    Column(Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Добавьте модель на стол", style = MaterialTheme.typography.titleMedium)
-                        Spacer(Modifier.height(16.dp))
-                        Button(onClick = { openModel.launch(arrayOf("*/*")) }) { Text("Открыть STL") }
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                val renderer = remember { PlateRenderer() }
+                val framedBed = remember { arrayOfNulls<BedShape>(1) }
+                SceneView(renderer, Modifier.fillMaxSize()) { r ->
+                    val bed = state.bed
+                    if (bed != null && framedBed[0] != bed) {
+                        r.camera.frame(bed.centerX, bed.centerY, 0f, max(bed.width, bed.depth) * 0.6f)
+                        framedBed[0] = bed
                     }
+                    r.setBed(bed, state.printableHeight)
+                    r.setModel(state.model?.placed, state.model?.fits ?: true)
                 }
-            } else {
-                ModelInfo(model, Modifier.align(Alignment.BottomStart).padding(12.dp))
-                FilledTonalIconButton(onClick = { showPlacement = true }, modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp).heightIn(min = 48.dp)) {
-                    Icon(Icons.Default.Edit, "Переместить, повернуть и масштабировать объект")
+                Surface(Modifier.align(Alignment.TopStart).padding(8.dp), shape = MaterialTheme.shapes.extraSmall, color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f)) {
+                    Text("Стол 1", Modifier.padding(horizontal = 10.dp, vertical = 6.dp), style = MaterialTheme.typography.labelMedium)
+                }
+                val model = state.model
+                if (model == null) {
+                    Surface(Modifier.align(Alignment.Center).padding(24.dp), shape = MaterialTheme.shapes.medium) {
+                        Column(Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text("Добавьте модель на стол", style = MaterialTheme.typography.titleMedium)
+                            Button(onClick = { openModel.launch(arrayOf("*/*")) }, shape = MaterialTheme.shapes.small) { Text("Открыть STL") }
+                        }
+                    }
+                } else {
+                    Column(Modifier.align(Alignment.BottomStart).padding(8.dp)) {
+                        Surface(shape = MaterialTheme.shapes.extraSmall, color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)) {
+                            Text(model.name, Modifier.padding(horizontal = 10.dp, vertical = 5.dp), maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelSmall)
+                        }
+                        ModelInfo(model)
+                    }
                 }
             }
         }
     }
-
-    val model = state.model
-    if (showPlacement && model != null) {
-        PlacementSheet(
-            model = model,
-            state = state,
-            onChange = viewModel::setPlacement,
-            onCenter = viewModel::centerModel,
-            onDismiss = { showPlacement = false },
-        )
+    if (showPlacement && state.model != null) PlacementSheet(state.model, state, viewModel::setPlacement, viewModel::centerModel) { showPlacement = false }
+    if (state.screen == Screen.SETTINGS) {
+        ModalBottomSheet(onDismissRequest = viewModel::back, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), dragHandle = null) {
+            Box(Modifier.fillMaxWidth().fillMaxHeight(0.94f)) { SettingsScreen(state, viewModel) }
+        }
     }
 }
 
 @Composable
-private fun PresetSummary(state: UiState, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val selection = state.selection ?: return
-    Card(
-        modifier = modifier.padding(12.dp).fillMaxWidth().clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f)),
-    ) {
-        Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
-            Text(state.inputs?.machine?.string("name") ?: selection.printer, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(
-                "${state.inputs?.process?.string("name") ?: selection.process}  ·  ${state.inputs?.filament?.string("name") ?: selection.filament.name}",
-                style = MaterialTheme.typography.bodySmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+private fun RowScope.PlateTool(icon: ImageVector, title: String, enabled: Boolean, onClick: () -> Unit) {
+    TextButton(onClick = onClick, enabled = enabled, shape = MaterialTheme.shapes.extraSmall, modifier = Modifier.weight(1f).heightIn(min = 52.dp), contentPadding = PaddingValues(2.dp)) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(icon, title, Modifier.size(20.dp))
+            Text(title, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+        }
+    }
+}
+
+@Composable
+private fun DesktopProfiles(state: UiState, viewModel: MainViewModel) {
+    val inputs = state.inputs ?: return
+    val rows = listOf(
+        Triple(PresetType.MACHINE, "Принтер", inputs.machine.string("name").orEmpty()),
+        Triple(PresetType.FILAMENT, "Пластик", inputs.filament.string("name").orEmpty()),
+        Triple(PresetType.PROCESS, "Процесс", inputs.process.string("name").orEmpty()),
+    )
+    Surface(color = MaterialTheme.colorScheme.surface) {
+        Column {
+            for ((type, label, value) in rows) {
+                Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { viewModel.openPreset(type) }.padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(label, Modifier.width(66.dp), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(value, Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
+                    IconButton(onClick = { viewModel.openSettings(type) }) { Icon(Icons.Default.Settings, "Параметры: $label", Modifier.size(18.dp)) }
+                }
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            }
         }
     }
 }

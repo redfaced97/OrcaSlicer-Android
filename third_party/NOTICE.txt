@@ -1,0 +1,9 @@
+OrcaSlicer icon
+
+Source: https://github.com/OrcaSlicer/OrcaSlicer/blob/8500fcdccaa10b5099ac20d252af3a7c560046f1/resources/images/OrcaSlicer.svg
+Retained original: third_party/OrcaSlicer.svg
+Android VectorDrawables: app/src/main/res/drawable/orca_logo.xml and ic_launcher_foreground.xml
+Copyright: OrcaSlicer contributors. Upstream project license: GNU AGPL-3.0.
+Official website: https://www.orcaslicer.com/
+Colors #009688, #2B2B2B and #36363B reference upstream src/slic3r/GUI/GUI_App.cpp.
+Android adaptation by redfaced97 / Codex; this is an unofficial port, not an official OrcaSlicer release.

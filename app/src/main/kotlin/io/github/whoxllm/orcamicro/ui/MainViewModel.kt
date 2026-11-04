@@ -15,6 +15,9 @@ import io.github.whoxllm.orcamicro.core.profiles.PresetRef
 import io.github.whoxllm.orcamicro.core.profiles.PresetType
 import io.github.whoxllm.orcamicro.core.profiles.PresetExchange
 import io.github.whoxllm.orcamicro.core.profiles.first
+import io.github.whoxllm.orcamicro.core.profiles.string
+import io.github.whoxllm.orcamicro.core.network.PrinterConnection
+import io.github.whoxllm.orcamicro.core.network.MoonrakerClient
 import io.github.whoxllm.orcamicro.core.settings.BedShape
 import io.github.whoxllm.orcamicro.core.settings.PresetEdits
 import io.github.whoxllm.orcamicro.core.slicing.EngineResponse
@@ -81,6 +84,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     selection = selection,
                     edits = if (firstRun) PresetEdits() else saved.edits,
                     favorites = saved.favorites,
+                    connection = saved.connection,
                     screen = if (firstRun) Screen.PRESETS else Screen.PLATE,
                 )
             }
@@ -262,6 +266,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 refreshInputs()
                 persist()
                 showMessage("Профиль импортирован")
+                if (type == PresetType.MACHINE && _state.value.connection.apiUrl.isBlank()) {
+                    imported.string("print_host")?.takeIf { it.isNotBlank() }?.let { host ->
+                        saveConnection(PrinterConnection(apiUrl = host, webUrl = imported.string("print_host_webui").orEmpty().ifBlank { host }))
+                    }
+                }
             } catch (e: Exception) {
                 showMessage("Не удалось импортировать: ${e.message}")
             }
@@ -469,7 +478,76 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     // ---- navigation and messages ---------------------------------------------------------
 
-    fun navigate(screen: Screen) = _state.update { it.copy(screen = screen) }
+    fun openSettings(type: PresetType = PresetType.PROCESS) = _state.update { it.copy(screen = Screen.SETTINGS, settingsType = type) }
+
+    fun openPreset(type: PresetType) = _state.update { it.copy(screen = Screen.PRESETS, presetPicker = type) }
+
+    fun saveConnection(connection: PrinterConnection): Boolean = try {
+        val normalized = connection.normalized()
+        require(!normalized.apiKey.contains('\n') && !normalized.apiKey.contains('\r')) { "Недопустимый API-ключ" }
+        _state.update { it.copy(connection = normalized, printerStatus = null) }
+        persist()
+        true
+    } catch (e: Exception) { showMessage(e.message ?: "Проверьте адрес"); false }
+
+    fun dismissUploadError() = _state.update { it.copy(uploadError = null) }
+
+    fun testPrinter() {
+        if (_state.value.connecting) return
+        val connection = _state.value.connection
+        _state.update { it.copy(connecting = true, printerStatus = null) }
+        viewModelScope.launch {
+            val status = withContext(Dispatchers.IO) {
+                runCatching { MoonrakerClient(connection).info() }.getOrElse { "Нет подключения: ${it.message}" }
+            }
+            _state.update { it.copy(connecting = false, printerStatus = status) }
+        }
+    }
+
+    fun uploadLastGcode() {
+        val result = _state.value.lastResult ?: return
+        upload(result.gcode, result.modelName.substringBeforeLast('.') + ".gcode")
+    }
+
+    fun uploadPickedGcode(uri: Uri) {
+        if (_state.value.uploadPercent != null) return
+        val name = displayName(uri)
+        if (!name.endsWith(".gcode", true) && !name.endsWith(".gco", true) && !name.endsWith(".gc", true)) {
+            showMessage("Выберите файл .gcode, .gco или .gc"); return
+        }
+        viewModelScope.launch {
+            try {
+                val file = withContext(Dispatchers.IO) {
+                    File(app.cacheDir, "upload.gcode").also { target ->
+                        app.contentResolver.openInputStream(uri)?.use { input -> target.outputStream().use { input.copyTo(it) } }
+                            ?: error("Не удалось открыть файл")
+                    }
+                }
+                upload(file, name)
+            } catch (e: Exception) { showMessage("Не удалось прочитать G-code: ${e.message}") }
+        }
+    }
+
+    private fun upload(file: File, name: String) {
+        val connection = _state.value.connection
+        if (connection.apiUrl.isBlank()) {
+            _state.update { it.copy(screen = Screen.DEVICE, message = "Укажите адрес Moonraker для загрузки") }; return
+        }
+        if (_state.value.uploadPercent != null) return
+        _state.update { it.copy(uploadPercent = 0, uploadError = null, uploadedFile = null) }
+        viewModelScope.launch {
+            try {
+                val uploaded = withContext(Dispatchers.IO) {
+                    MoonrakerClient(connection).upload(file, name) { percent -> _state.update { it.copy(uploadPercent = percent) } }
+                }
+                _state.update { it.copy(uploadPercent = null, uploadedFile = uploaded, message = "Загружено: $uploaded") }
+            } catch (e: Exception) {
+                _state.update { it.copy(uploadPercent = null, uploadError = "Ошибка загрузки: ${e.message}") }
+            }
+        }
+    }
+
+    fun navigate(screen: Screen) = _state.update { it.copy(screen = screen, presetPicker = null) }
 
     fun back() = _state.update { it.copy(screen = Screen.PLATE) }
 
@@ -479,7 +557,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun persist() {
         val state = _state.value
-        val saved = SavedState(state.selection, state.edits, state.model?.name, state.model?.placement, state.favorites)
+        val saved = SavedState(state.selection, state.edits, state.model?.name, state.model?.placement, state.favorites, state.connection)
         saves.trySend(saved)
     }
 }

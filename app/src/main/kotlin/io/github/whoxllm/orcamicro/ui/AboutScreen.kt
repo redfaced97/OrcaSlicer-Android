@@ -49,46 +49,32 @@ private val thirdParty = listOf(
 )
 
 @Composable
-fun AboutScreen(onBack: () -> Unit) {
+fun AboutScreen(state: UiState, viewModel: MainViewModel) {
     val context = LocalContext.current
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Об OrcaPocket") },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад") } },
-            )
-        },
-    ) { padding ->
-        Column(
-            Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text("OrcaPocket ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.headlineSmall)
-            Text("Движок: OrcaSlicer ${BuildConfig.ORCA_VERSION}. Нарезка выполняется на телефоне.")
+    fun open(url: String) { runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } }
+    Scaffold(topBar = { DesktopHeader(state, viewModel) }) { padding ->
+        Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("OrcaSlicer ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.headlineSmall)
+            Text("Неофициальная Android-адаптация. Интерфейс по мотивам настольной OrcaSlicer, для сенсорного экрана телефона.")
+            Text("Команда", style = MaterialTheme.typography.titleMedium)
+            Text("Продюсер — redfaced97")
+            Text("Программист — Codex GPT-6.1-Sol")
+            Text("Бета-тестер — redfaced97 и Ender 3 v3 SE (Klipper)")
             Text("Generated with AI assistant, sorry(", style = MaterialTheme.typography.labelMedium)
-            Text("Основано на OrcaMicro, автор whoxllm и участники проекта. Интерфейс адаптирован для небольшого экрана; каталог содержит 638 параметров OrcaSlicer.")
-            Text("Поддерживаются STL, один объект и один материал. 3MF-проекты, покраска поддержек, мультиматериальная печать и отправка по сети в этой версии отсутствуют. Показатель совместимости 90% не измерен.")
-            Text(
-                "OrcaPocket is free software: you can redistribute it and/or modify it under the terms of the " +
-                    "GNU Affero General Public License version 3 or later. It comes with no warranty. " +
-                    "Modified source is supplied in the OrcaPocket-source.zip archive alongside this APK.",
-            )
-            if (BuildConfig.SOURCE_URL.isNotBlank()) OutlinedButton(
-                onClick = {
-                    try {
-                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(BuildConfig.SOURCE_URL)))
-                    } catch (e: ActivityNotFoundException) {
-                        // No browser installed; nothing to do.
-                    }
-                },
-                modifier = Modifier.fillMaxWidth(),
-            ) { Text("Исходный код") }
-            Text("Использованные проекты", style = MaterialTheme.typography.titleMedium)
+            Text("Источники", style = MaterialTheme.typography.titleMedium)
+            Text("Android-основа и JNI-мост — OrcaMicro, whoxllm и участники проекта. Исходники адаптированы для этой версии.")
+            OutlinedButton(onClick = { open("https://github.com/whoxllm/OrcaMicro") }) { Text("Исходники OrcaMicro") }
+            Text("Движок libslic3r, профили, русские подписи и подсказки — OrcaSlicer ${BuildConfig.ORCA_VERSION}, SoftFever и участники; на основе Bambu Studio, PrusaSlicer и Slic3r.")
+            OutlinedButton(onClick = { open("https://github.com/OrcaSlicer/OrcaSlicer") }) { Text("Исходники OrcaSlicer") }
+            Text("Иконка — официальный репозиторий OrcaSlicer: resources/images/OrcaSlicer.svg. Акцент #009688 и серые тона — из настольного интерфейса OrcaSlicer. Android-представление иконки преобразовано из оригинального SVG.")
+            OutlinedButton(onClick = { open("https://www.orcaslicer.com/") }) { Text("Официальный сайт OrcaSlicer") }
+            Text("Загрузка G-code — собственный HTTP-клиент по документации Moonraker. Вкладка принтера открывает установленный на принтере Mainsail или Fluidd через Android WebView.")
+            Text("Возможности этой версии", style = MaterialTheme.typography.titleMedium)
+            Text("STL, один объект и материал, 638 параметров, импорт профилей, просмотр слоёв и загрузка G-code. 3MF-проекты, покраска и мультиматериальная нарезка пока отсутствуют. Совместимость 90% не измерена.")
+            Text("Лицензия AGPL-3.0. Изменённые исходники поставляются в архиве OrcaSlicer-source.zip вместе с APK.", style = MaterialTheme.typography.bodySmall)
+            if (BuildConfig.SOURCE_URL.isNotBlank()) OutlinedButton(onClick = { open(BuildConfig.SOURCE_URL) }) { Text("Исходники этой адаптации") }
+            Text("Библиотеки", style = MaterialTheme.typography.titleMedium)
             for (line in thirdParty) Text("• $line", style = MaterialTheme.typography.bodySmall)
-            Text(
-                "Printer, process and filament profiles come from OrcaSlicer and its contributors.",
-                style = MaterialTheme.typography.bodySmall,
-            )
         }
     }
 }

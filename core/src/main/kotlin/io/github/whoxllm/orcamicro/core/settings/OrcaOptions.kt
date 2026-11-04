@@ -58,12 +58,48 @@ object OrcaOptions {
             require(option.valueType != "coInt" || number == Math.rint(number)) { "Введите целое число" }
             return JsonPrimitive(text.trim().replace(',', '.'))
         }
+        if (option.valueType == "coBool") {
+            require(text.lowercase() in setOf("0", "1", "true", "false")) { "Выберите включено или выключено" }
+            return JsonPrimitive(if (text == "1" || text.equals("true", true)) "1" else "0")
+        }
         return JsonPrimitive(text)
     }
 
+    /** Human-readable values; JSON syntax belongs to the saved profile, not the interface. */
     fun display(value: JsonElement?): String = when (value) {
         null -> ""
-        is JsonPrimitive -> value.contentOrNull.orEmpty()
-        else -> value.toString()
+        is JsonPrimitive -> if (value == JsonNull || value.content == "nil") "По умолчанию" else value.content
+        is JsonArray -> value.joinToString(" · ") { display(it) }.ifEmpty { "Нет значений" }
+        is JsonObject -> value.entries.joinToString("; ") { "${it.key}: ${display(it.value)}" }
+    }
+
+    fun scalarOption(option: OrcaOption): OrcaOption = option.copy(valueType = when (option.valueType) {
+        "coFloats" -> "coFloat"
+        "coInts" -> "coInt"
+        "coPercents" -> "coPercent"
+        "coFloatsOrPercents" -> "coFloatOrPercent"
+        "coBools" -> "coBool"
+        "coEnums" -> "coEnum"
+        "coPoints", "coPointsGroups" -> "coPoint"
+        "coStrings" -> "coString"
+        else -> option.valueType
+    })
+
+    fun formValue(option: OrcaOption, value: JsonElement?): JsonElement =
+        if (option.isList && value !is JsonArray) JsonArray(listOf(value ?: JsonPrimitive("")))
+        else value ?: JsonPrimitive("")
+
+    /** Convert independent form fields back to the exact original container structure. */
+    fun parseForm(option: OrcaOption, draft: JsonElement, original: JsonElement?): JsonElement {
+        if (draft == original) return draft
+        return when (draft) {
+            is JsonArray -> JsonArray(draft.mapIndexed { i, item -> parseForm(scalarOption(option), item, (original as? JsonArray)?.getOrNull(i)) })
+            is JsonObject -> JsonObject(draft.mapValues { (key, item) -> parseForm(scalarOption(option), item, (original as? JsonObject)?.get(key)) })
+            is JsonPrimitive -> {
+                // Preserve an inherited nullable value; normal numeric input is still validated.
+                if (draft == JsonNull || (draft.content == "nil" && (original as? JsonPrimitive)?.content == "nil")) draft
+                else parseValue(scalarOption(option), draft.content)
+            }
+        }
     }
 }

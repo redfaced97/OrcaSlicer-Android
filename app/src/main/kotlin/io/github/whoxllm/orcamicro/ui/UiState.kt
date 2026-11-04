@@ -14,8 +14,9 @@ import io.github.whoxllm.orcamicro.core.settings.RenderOptions
 import java.io.File
 import io.github.whoxllm.orcamicro.core.network.PrinterConnection
 import io.github.whoxllm.orcamicro.core.profiles.PresetType
+import io.github.whoxllm.orcamicro.core.network.*
 
-enum class Screen { PLATE, PRESETS, SETTINGS, PREVIEW, DEVICE, ABOUT }
+enum class Screen { PLATE, PRESETS, SETTINGS, PREVIEW, DEVICE, ABOUT, LIBRARY, PRINT_SETUP }
 
 /** The loaded model: the mesh as read, how it is placed, and the placed result for display. */
 data class ModelState(
@@ -64,4 +65,21 @@ data class UiState(
     val uploadPercent: Int? = null,
     val uploadedFile: String? = null,
     val uploadError: String? = null,
+    val printers: List<SavedPrinter> = emptyList(),
+    val activePrinterId: String? = null,
+    val telemetry: KlipperSnapshot? = null,
+    val temperatureHistory: List<TemperatureSeries> = emptyList(),
+    val temperatureHistoryError: String? = null,
+    val telemetryAt: Long? = null,
+    val deviceError: String? = null,
+    val deviceBusy: Boolean = false,
+    val libraryModels: List<LibraryModel> = emptyList(),
+    val libraryBrowser: String? = null,
+    val libraryBusy: Boolean = false,
+    val libraryProgress: String? = null,
+    val archiveChoices: List<String> = emptyList(),
+    val pendingLibraryId: String? = null,
+    val printDialog: Boolean = false,
+    val modelCacheDays: Int = 7,
+    val modelCacheBytes: Long = 0,
 )

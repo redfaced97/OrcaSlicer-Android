@@ -67,10 +67,11 @@ fun AboutScreen(state: UiState, viewModel: MainViewModel) {
             OutlinedButton(onClick = { open("https://github.com/OrcaSlicer/OrcaSlicer") }) { Text("Исходники OrcaSlicer") }
             Text("Шрифт Inter — Rasmus Andersson и участники, SIL OFL 1.1. Иконки действий и иконка приложения — официальный репозиторий OrcaSlicer: resources/images/OrcaSlicer.svg. Акцент #009688 и серые тона — из настольного интерфейса OrcaSlicer. Android-представление иконки преобразовано из оригинального SVG.")
             OutlinedButton(onClick = { open("https://www.orcaslicer.com/") }) { Text("Официальный сайт OrcaSlicer") }
-            Text("Загрузка G-code — собственный HTTP-клиент по документации Moonraker. Вкладка принтера открывает установленный на принтере Mainsail или Fluidd через Android WebView.")
+            Text("Пульт, графики температур и отправка G-code — собственный HTTP-клиент по документации Moonraker и Klipper. Веб-интерфейс открывает установленный Mainsail или Fluidd. Каталоги Thingiverse, Printables, Cults3D и MakerWorld открываются через Android WebView; карточки сохраняют ссылку на источник.")
             Text("Возможности этой версии", style = MaterialTheme.typography.titleMedium)
-            Text("STL, один объект и материал, 638 параметров, библиотека своих профилей, цвет и перенос модели двойным тапом, просмотр слоёв с Dev menu и загрузка G-code. 3MF-проекты, покраска и мультиматериальная нарезка пока отсутствуют. Совместимость 90% не измерена.")
-            Text("Лицензия AGPL-3.0. Изменённые исходники поставляются в архиве OrcaSlicer-source.zip вместе с APK.", style = MaterialTheme.typography.bodySmall)
+            Text("STL, ZIP и геометрия 3MF; один объект и материал, 638 параметров, свои профили, карточки моделей, поиск, теги, кэш, просмотр слоёв с Dev menu и несколько принтеров Klipper. Настройки 3MF-проектов, покраска и мультиматериальная нарезка пока не поддерживаются. Совместимость 90% не измерена.")
+            Text("Лицензия AGPL-3.0. Исходники доступны по ссылке ниже и в разделе Source code у каждого релиза GitHub.", style = MaterialTheme.typography.bodySmall)
+            OutlinedButton(onClick = { open("https://github.com/redfaced97/OrcaSlicer-Android/releases") }) { Text("Релизы и обновления") }
             if (BuildConfig.SOURCE_URL.isNotBlank()) OutlinedButton(onClick = { open(BuildConfig.SOURCE_URL) }) { Text("Исходники этой адаптации") }
             Text("Библиотеки", style = MaterialTheme.typography.titleMedium)
             for (line in thirdParty) Text("• $line", style = MaterialTheme.typography.bodySmall)

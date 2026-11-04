@@ -162,7 +162,7 @@ fun PreviewScreen(state: UiState, viewModel: MainViewModel) {
                     }
                     Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         androidx.compose.material3.OutlinedButton(onClick = { export.launch(gcodeName(result.modelName)) }, modifier = Modifier.weight(1f), shape = MaterialTheme.shapes.small) { Text("Сохранить") }
-                        Button(onClick = viewModel::uploadLastGcode, modifier = Modifier.weight(1f), enabled = state.uploadPercent == null, shape = MaterialTheme.shapes.small) { Text("Загрузить") }
+                        Button(onClick = { viewModel.showPrintDialog(true) }, modifier = Modifier.weight(1f), enabled = state.uploadPercent == null, shape = MaterialTheme.shapes.small) { Text("На печать") }
                     }
                 }
             }

@@ -3,6 +3,7 @@
 
     <!-- Local slicing remains offline; networking is used for Moonraker and its web UI. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -27,6 +28,17 @@
             android:launchMode="singleTask"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="orcaslicer" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+            <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
@@ -36,6 +48,9 @@
                 <data android:scheme="content" />
                 <data android:scheme="file" />
                 <data android:mimeType="model/stl" />
+                <data android:mimeType="model/3mf" />
+                <data android:mimeType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml" />
+                <data android:mimeType="application/zip" />
                 <data android:mimeType="model/x.stl-binary" />
                 <data android:mimeType="model/x.stl-ascii" />
                 <data android:mimeType="application/sla" />
@@ -45,6 +60,8 @@
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="model/stl" />
+                <data android:mimeType="model/3mf" />
+                <data android:mimeType="application/zip" />
                 <data android:mimeType="model/x.stl-binary" />
                 <data android:mimeType="model/x.stl-ascii" />
                 <data android:mimeType="application/sla" />
@@ -53,6 +70,11 @@
         </activity>
 
         <!-- The native slicer runs in its own process so a crash there cannot take the app down. -->
+        <service
+            android:name=".data.ModelCacheService"
+            android:permission="android.permission.BIND_JOB_SERVICE"
+            android:exported="true" />
+
         <service
             android:name=".engine.EngineService"
             android:exported="false"

@@ -17,6 +17,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        io.github.whoxllm.orcamicro.data.ModelCacheService.schedule(this)
         if (savedInstanceState == null) handleIntent(intent)
         setContent { OrcaMicroApp(viewModel) }
     }
@@ -28,6 +29,12 @@ class MainActivity : ComponentActivity() {
 
     /** "Open with" and "Share" from file managers and other apps. */
     private fun handleIntent(intent: Intent?) {
+        if(intent?.action==Intent.ACTION_VIEW && intent.data?.scheme in setOf("orcaslicer","prusaslicer","bambustudio","https")) {
+            viewModel.openModelLink(intent.data.toString());return
+        }
+        if(intent?.action==Intent.ACTION_SEND && intent.type=="text/plain") {
+            intent.getStringExtra(Intent.EXTRA_TEXT)?.let(viewModel::openModelLink);return
+        }
         val uri: Uri? = when (intent?.action) {
             Intent.ACTION_VIEW -> intent.data
             Intent.ACTION_SEND -> if (Build.VERSION.SDK_INT >= 33) {

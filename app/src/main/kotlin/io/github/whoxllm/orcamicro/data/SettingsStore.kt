@@ -10,6 +10,8 @@ import io.github.whoxllm.orcamicro.core.profiles.UserPreset
 import io.github.whoxllm.orcamicro.core.settings.RenderOptions
 import java.io.File
 import io.github.whoxllm.orcamicro.core.network.PrinterConnection
+import io.github.whoxllm.orcamicro.core.network.SavedPrinter
+import io.github.whoxllm.orcamicro.core.network.LibraryModel
 
 /** Which presets are selected. */
 @Serializable
@@ -31,6 +33,10 @@ data class SavedState(
     val connection: PrinterConnection = PrinterConnection(),
     val userPresets: List<UserPreset> = emptyList(),
     val renderOptions: RenderOptions = RenderOptions(),
+    val printers: List<SavedPrinter> = emptyList(),
+    val activePrinterId: String? = null,
+    val libraryModels: List<LibraryModel> = emptyList(),
+    val modelCacheDays: Int = 7,
 )
 
 /** Persists [SavedState] as JSON in app storage, and keeps a copy of the current model. */

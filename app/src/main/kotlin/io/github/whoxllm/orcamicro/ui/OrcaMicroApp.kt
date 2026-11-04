@@ -20,6 +20,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
@@ -45,7 +47,13 @@ fun OrcaMicroApp(viewModel: MainViewModel) {
                         Screen.PREVIEW -> PreviewScreen(state, viewModel)
                         Screen.DEVICE -> PrinterScreen(state, viewModel)
                         Screen.ABOUT -> AboutScreen(state, viewModel)
+                        Screen.LIBRARY -> ModelLibraryScreen(state, viewModel)
+                        Screen.PRINT_SETUP -> PrintSetupScreen(state, viewModel)
                     }
+                    if(state.archiveChoices.isNotEmpty())AlertDialog(onDismissRequest=viewModel::dismissArchive,title={Text("Выберите деталь из архива")},text={
+                        LazyColumn(Modifier.heightIn(max=420.dp)) { items(state.archiveChoices) { entry->TextButton(onClick={viewModel.chooseArchiveEntry(entry)}){Text(entry)} } }
+                    },confirmButton={TextButton(onClick=viewModel::dismissArchive){Text("Закрыть")}})
+                    if(state.printDialog)PrintSendDialog(state,viewModel)
                     if (state.uploadPercent != null) AlertDialog(
                         onDismissRequest = {}, title = { Text("Загрузка G-code") },
                         text = { Column { LinearProgressIndicator(progress = { state.uploadPercent!! / 100f }, modifier = Modifier.fillMaxWidth()); Text("${state.uploadPercent}%") } }, confirmButton = {},

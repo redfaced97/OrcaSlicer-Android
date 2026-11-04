@@ -21,51 +21,61 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import io.github.whoxllm.orcamicro.core.network.PrinterConnection
 import java.net.URI
+import androidx.lifecycle.repeatOnLifecycle
 
 @Composable
 fun PrinterScreen(state: UiState, viewModel: MainViewModel) {
-    var showWeb by rememberSaveable { mutableStateOf(state.connection.apiUrl.isNotBlank()) }
+    var tab by rememberSaveable { mutableIntStateOf(if(state.connection.apiUrl.isBlank())2 else 0) }
     var refresh by remember { mutableIntStateOf(0) }
+    var editingId by remember(state.activePrinterId) { mutableStateOf(state.activePrinterId) }
+    var name by remember(state.activePrinterId) { mutableStateOf(state.printers.firstOrNull { it.id==state.activePrinterId }?.name.orEmpty()) }
     var api by remember(state.connection) { mutableStateOf(state.connection.apiUrl) }
     var web by remember(state.connection) { mutableStateOf(state.connection.webUrl) }
     var apiKey by remember(state.connection) { mutableStateOf(state.connection.apiKey) }
+    var machine by remember(state.activePrinterId) { mutableStateOf(state.printers.firstOrNull { it.id==state.activePrinterId }?.machineProfile) }
     val snackbar = remember { SnackbarHostState() }
     MessageEffect(state.message, snackbar, viewModel::consumeMessage)
     val pickGcode = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(viewModel::uploadPickedGcode) }
-    val context = LocalContext.current
-    fun save() = viewModel.saveConnection(PrinterConnection(api, web, apiKey))
-    Scaffold(
-        topBar = { DesktopHeader(state, viewModel) {
-            IconButton(onClick = { showWeb = !showWeb }) { OrcaIcon(OrcaAction.Settings, if(showWeb) "Настроить подключение" else "Открыть веб-интерфейс") }
-            IconButton(onClick = { refresh++; viewModel.testPrinter() }, enabled = !state.connecting) { OrcaIcon(OrcaAction.Refresh, "Обновить принтер") }
-        } },
-        snackbarHost = { SnackbarHost(snackbar) },
-    ) { padding ->
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(state.connection,tab,refresh,lifecycle) {
+        if(tab==0 && state.connection.apiUrl.isNotBlank()) lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+            while(true) { viewModel.refreshTelemetry();kotlinx.coroutines.delay(3000) }
+        }
+    }
+    Scaffold(topBar={DesktopHeader(state,viewModel) {
+        IconButton(onClick={tab=2}){OrcaIcon(OrcaAction.Settings,"Настроить подключение")}
+        IconButton(onClick={refresh++;viewModel.testPrinter()},enabled=!state.connecting){OrcaIcon(OrcaAction.Refresh,"Обновить принтер")}
+    }},snackbarHost={SnackbarHost(snackbar)}) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
-            if (showWeb && state.connection.apiUrl.isNotBlank()) {
-                key(state.connection.webUrl, refresh) { EmbeddedKlipper(state.connection, Modifier.weight(1f).fillMaxWidth()) }
-            } else {
-                Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("Подключение · Klipper / Moonraker", style = MaterialTheme.typography.titleMedium)
-                    OutlinedTextField(api, { api = it }, label = { Text("Адрес Moonraker") }, placeholder = { Text("http://printer.local:7125") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(web, { web = it }, label = { Text("Mainsail / Fluidd") }, placeholder = { Text("http://printer.local") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(apiKey, { apiKey = it }, label = { Text("API-ключ, если требуется") }, visualTransformation = PasswordVisualTransformation(), singleLine = true, modifier = Modifier.fillMaxWidth())
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { if (save()) viewModel.testPrinter() }, enabled = !state.connecting, modifier = Modifier.weight(1f)) { Text(if (state.connecting) "Проверка…" else "Проверить") }
-                        Button(onClick = { if (save()) showWeb = true }, modifier = Modifier.weight(1f)) { Text("Открыть") }
+            if(state.printers.isNotEmpty())Box(Modifier.padding(horizontal=12.dp,vertical=6.dp)) {
+                ChoiceField("Активный принтер",state.printers.firstOrNull { it.id==state.activePrinterId }?.name.orEmpty(),state.printers.map { PickerItem(it.id,it.name,it.connection.apiUrl) },enabled=!state.deviceBusy&&state.uploadPercent==null,onSelect=viewModel::selectSavedPrinter)
+            }
+            TabRow(tab) { listOf("Пульт","Веб","Принтеры").forEachIndexed { i,title->Tab(selected=tab==i,onClick={tab=i},text={Text(title,maxLines=1)}) } }
+            when(tab) {
+                0 -> PrinterControlPanel(state,viewModel,Modifier.weight(1f))
+                1 -> if(state.connection.apiUrl.isNotBlank())key(state.connection,refresh) { EmbeddedKlipper(state.connection,Modifier.weight(1f).fillMaxWidth()) }
+                    else Box(Modifier.weight(1f).padding(16.dp)){Text("Добавьте подключение к Moonraker")}
+                else -> Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
+                    Row {
+                        Text(if(editingId==null)"Новое подключение" else "Настройки подключения",Modifier.weight(1f),style=MaterialTheme.typography.titleMedium)
+                        TextButton(onClick={editingId=null;name="";api="";web="";apiKey="";machine=null}){Text("+ Добавить")}
                     }
-                    state.printerStatus?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
-                    if (state.connecting) LinearProgressIndicator(Modifier.fillMaxWidth())
-                    Text("Телефон и принтер должны быть в одной сети. Загрузка сохраняет файл на принтере; запуск печати доступен в его веб-интерфейсе.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    if (state.connection.webUrl.isNotBlank()) TextButton(onClick = { runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(state.connection.webUrl))) } }) { Text("Открыть в браузере") }
-                    Spacer(Modifier.height(12.dp))
+                    OutlinedTextField(name,{name=it},label={Text("Имя принтера")},singleLine=true,modifier=Modifier.fillMaxWidth())
+                    OutlinedTextField(api,{api=it},label={Text("Адрес Moonraker")},placeholder={Text("http://printer.local:7125")},singleLine=true,modifier=Modifier.fillMaxWidth())
+                    OutlinedTextField(web,{web=it},label={Text("Mainsail / Fluidd")},singleLine=true,modifier=Modifier.fillMaxWidth())
+                    OutlinedTextField(apiKey,{apiKey=it},label={Text("API-ключ, если требуется")},visualTransformation=PasswordVisualTransformation(),singleLine=true,modifier=Modifier.fillMaxWidth())
+                    ChoiceField("Связанный профиль принтера",machine ?: "Выбрать вручную перед нарезкой",listOf(PickerItem("none","Выбрать вручную перед нарезкой"))+state.userPresets.filter { it.type==io.github.whoxllm.orcamicro.core.profiles.PresetType.MACHINE }.map { PickerItem(it.name,it.name,"Мои профили") }) { machine=it.takeUnless { it=="none" } }
+                    Button(shape=MaterialTheme.shapes.small,contentPadding=PaddingValues(horizontal=8.dp,vertical=8.dp),onClick={if(viewModel.savePrinter(name,PrinterConnection(api,web,apiKey),editingId,machine)){tab=0;viewModel.testPrinter()}},enabled=!state.deviceBusy,modifier=Modifier.fillMaxWidth()){Text("Сохранить и подключить")}
+                    state.printerStatus?.let { Text(it,style=MaterialTheme.typography.bodyMedium) }
+                    if(editingId!=null)TextButton(onClick={editingId?.let(viewModel::deletePrinter)}){Text("Удалить подключение")}
+                    Text("Пульт и графики работают через Moonraker / Klipper. Для других прошивок можно использовать веб-интерфейс. Каждый принтер хранит свой адрес и ключ.",style=MaterialTheme.typography.bodySmall)
                 }
             }
-            state.uploadedFile?.let { Text("Загружен: $it", Modifier.padding(horizontal = 12.dp), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium) }
-            Surface(tonalElevation = 2.dp) {
-                Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { if (state.connection.apiUrl.isBlank() && !save()) return@OutlinedButton; pickGcode.launch(arrayOf("*/*")) }, enabled = state.uploadPercent == null, modifier = Modifier.weight(1f), shape = MaterialTheme.shapes.small) { Text("Выбрать G-code") }
-                    Button(onClick = viewModel::uploadLastGcode, enabled = state.lastResult != null && state.uploadPercent == null, modifier = Modifier.weight(1f), shape = MaterialTheme.shapes.small) { Text("Загрузить стол") }
+            state.uploadedFile?.let { Text("Загружен: $it",Modifier.padding(horizontal=12.dp),color=MaterialTheme.colorScheme.primary,style=MaterialTheme.typography.labelMedium) }
+            Surface(tonalElevation=2.dp) {
+                Row(Modifier.fillMaxWidth().padding(12.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(shape=MaterialTheme.shapes.small,contentPadding=PaddingValues(horizontal=8.dp,vertical=8.dp),onClick={pickGcode.launch(arrayOf("*/*"))},enabled=state.connection.apiUrl.isNotBlank()&&state.uploadPercent==null,modifier=Modifier.weight(1f)){Text("Файл G-code",maxLines=1)}
+                    Button(shape=MaterialTheme.shapes.small,contentPadding=PaddingValues(horizontal=8.dp,vertical=8.dp),onClick={viewModel.showPrintDialog(true)},enabled=(state.lastResult!=null||state.uploadedFile!=null)&&state.uploadPercent==null,modifier=Modifier.weight(1f)){Text("На печать")}
                 }
             }
         }

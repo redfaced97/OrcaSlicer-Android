@@ -49,9 +49,9 @@ fun PlateScreen(state: UiState, viewModel: MainViewModel) {
         bottomBar = {
             Surface(tonalElevation = 2.dp) {
                 Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { viewModel.openSettings() }, shape = MaterialTheme.shapes.small, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp), modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
+                    OutlinedButton(onClick = { viewModel.navigate(Screen.PRINT_SETUP) }, shape = MaterialTheme.shapes.small, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp), modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
                         OrcaIcon(OrcaAction.Settings, null, Modifier.size(20.dp))
-                        Text("Параметры", Modifier.padding(start = 6.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text("К печати", Modifier.padding(start = 6.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     Button(onClick = viewModel::slice, enabled = state.model?.fits == true && state.slice !is SliceState.Running, shape = MaterialTheme.shapes.small, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp), modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
                         Icon(Icons.Default.PlayArrow, null, Modifier.size(20.dp))

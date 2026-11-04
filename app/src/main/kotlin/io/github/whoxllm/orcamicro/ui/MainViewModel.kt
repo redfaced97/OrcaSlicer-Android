@@ -48,6 +48,12 @@ import io.github.whoxllm.orcamicro.core.profiles.UserPresets
 import io.github.whoxllm.orcamicro.core.settings.RenderOptions
 import io.github.whoxllm.orcamicro.core.settings.Russian
 import java.io.File
+import io.github.whoxllm.orcamicro.core.network.*
+import io.github.whoxllm.orcamicro.core.mesh.ModelFiles
+import io.github.whoxllm.orcamicro.core.mesh.StlWriter
+import android.webkit.CookieManager
+import kotlinx.coroutines.CancellationException
+import java.util.UUID
 
 /** Raw (unedited) presets for the current selection. */
 private class ResolvedPresets(val selection: PresetSelection, val machine: JsonObject, val process: JsonObject, val filament: JsonObject)
@@ -65,6 +71,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private var placementJob: Job? = null
     private var sliceJob: Job? = null
     private val saves = Channel<SavedState>(Channel.CONFLATED)
+    private var telemetryClient: MoonrakerClient? = null
+    private var telemetryConnection: PrinterConnection? = null
+    private var historyAt = 0L
+    private var uploadedConnection: PrinterConnection? = null
+    private var pendingSetup = false
+    private var pendingExternalLink:String?=null
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
@@ -78,11 +90,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private suspend fun load() {
         try {
             val saved = withContext(Dispatchers.IO) { store.load() }
+            val cacheDays=saved.modelCacheDays.takeIf { it in ModelCache.durations } ?: 7
+            withContext(Dispatchers.IO) { ModelCache.clean(File(app.filesDir,"library"),cacheDays) }
             val catalog = withContext(Dispatchers.IO) { profiles.catalog }
             val selection = saved.selection?.takeIf { isValid(catalog, it) } ?: defaultSelection(catalog)
             val resolved = withContext(Dispatchers.IO) { resolve(selection) }
             presets = resolved
             val firstRun = saved.selection == null
+            val printers = saved.printers.ifEmpty { if(saved.connection.apiUrl.isBlank()) emptyList() else listOf(SavedPrinter("legacy", saved.edits.importedMachine?.string("name") ?: selection.printer, saved.connection, saved.edits.importedMachine?.string("name"))) }
+            val active = printers.firstOrNull { it.id == saved.activePrinterId } ?: printers.firstOrNull { it.connection == saved.connection } ?: printers.firstOrNull()
             _state.update {
                 it.copy(
                     ready = true,
@@ -90,7 +106,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     selection = selection,
                     edits = if (firstRun) PresetEdits() else saved.edits,
                     favorites = saved.favorites,
-                    connection = saved.connection,
+                    connection = active?.connection ?: saved.connection,
+                    printers = printers,
+                    activePrinterId = active?.id,
+                    libraryModels = saved.libraryModels.map { model->if(model.localFile?.let { name->File(app.filesDir,"library/$name").isFile }==true)model else model.copy(localFile=null) },
+                    modelCacheDays = cacheDays,
+                    modelCacheBytes = File(app.filesDir,"library").listFiles().orEmpty().sumOf { it.length() },
                     userPresets = UserPresets.merge(saved.userPresets, listOfNotNull(
                         saved.edits.importedMachine?.let { UserPreset(PresetType.MACHINE, it) },
                         saved.edits.importedProcess?.let { UserPreset(PresetType.PROCESS, it) },
@@ -101,6 +122,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
             refreshInputs()
             restoreModel(saved)
+            pendingExternalLink?.let { pendingExternalLink=null;openModelLink(it) }
         } catch (e: Exception) {
             _state.update { it.copy(ready = true, loadError = "Не удалось загрузить профили принтера: ${e.message}") }
         }
@@ -151,8 +173,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val bed = BedShape.of(inputs.machine) ?: BedShape.rectangle(0f, 0f, 220f, 220f)
         val height = inputs.machine.first("printable_height")?.toFloatOrNull() ?: 250f
         _state.update { state ->
+            val changed=state.inputs?.let { it.machine!=inputs.machine || it.process!=inputs.process || it.filament!=inputs.filament }==true
             state.copy(
                 inputs = inputs,
+                lastResult = if(changed) null else state.lastResult,
+                uploadedFile = if(changed) null else state.uploadedFile,
                 bed = bed,
                 printableHeight = height,
                 model = state.model?.let { withFit(it, bed, height) },
@@ -250,7 +275,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun selectUserPreset(preset: UserPreset) {
-        _state.update { state -> state.copy(edits = activate(state.edits, preset), lastResult = null) }
+        _state.update { state -> state.copy(edits = activate(state.edits, preset), lastResult = null,uploadedFile=null) }
         refreshInputs()
         persist()
         if (preset.type == PresetType.MACHINE && _state.value.connection.apiUrl.isBlank()) {
@@ -351,25 +376,28 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // ---- model ---------------------------------------------------------------------------
 
     fun openModel(uri: Uri) {
+        if(_state.value.libraryBusy)return showMessage("Дождитесь открытия модели")
+        _state.update { it.copy(libraryBusy=true,libraryProgress="Импорт модели…") }
         viewModelScope.launch {
+            val local="${UUID.randomUUID()}.bin"
+            val file=File(app.filesDir,"library/$local").also { it.parentFile?.mkdirs() }
             try {
-                val (name, mesh) = withContext(Dispatchers.IO) {
-                    val bytes = app.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                        ?: throw StlFormatException("Не удалось открыть файл")
-                    val mesh = StlReader.read(bytes)
-                    store.modelFile.writeBytes(bytes)
-                    displayName(uri) to mesh
+                val name=withContext(Dispatchers.IO) {
+                    app.contentResolver.openInputStream(uri)?.use { input->file.outputStream().use { out->
+                        val buffer=ByteArray(64*1024);var total=0
+                        while(true){val n=input.read(buffer);if(n<0)break;total+=n;require(total<=ModelFiles.MAX_FILE_BYTES){"Файл больше 96 МБ"};out.write(buffer,0,n)}
+                    } } ?: error("Файл недоступен")
+                    ModelFiles.entries(file)
+                    runCatching { app.contentResolver.takePersistableUriPermission(uri,android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+                    displayName(uri)
                 }
-                setModel(name, mesh, centeredPlacement())
-                _state.update { it.copy(lastResult = null) }
-                persist()
-            } catch (e: StlFormatException) {
-                showMessage("Не удалось прочитать STL: ${e.message}")
-            } catch (e: OutOfMemoryError) {
-                showMessage("Модель слишком большая для этого устройства")
-            } catch (e: Exception) {
-                showMessage("Не удалось открыть модель: ${e.message}")
-            }
+                val old=_state.value.libraryModels.firstOrNull { it.url==uri.toString() }
+                val card=old?.copy(filename=name,localFile=local) ?: LibraryModel(source=null,url=uri.toString(),title=name,filename=name,localFile=local)
+                old?.localFile?.takeIf { it.matches(Regex("[a-zA-Z0-9.-]+")) }?.let { File(app.filesDir,"library/$it").delete() }
+                _state.update { it.copy(libraryBusy=false,libraryProgress=null,libraryModels=(listOf(card)+it.libraryModels.filterNot { m->m.id==card.id }).take(100),modelCacheBytes=File(app.filesDir,"library").listFiles().orEmpty().sumOf { f->f.length() }) }
+                persist();openLibraryModel(card.id)
+            } catch(e:Exception) { file.delete();_state.update { it.copy(libraryBusy=false,libraryProgress=null) };showMessage("Не удалось открыть модель: ${e.message}") }
+            catch(e:OutOfMemoryError) { file.delete();_state.update { it.copy(libraryBusy=false,libraryProgress=null) };showMessage("Модель слишком большая для телефона") }
         }
     }
 
@@ -402,6 +430,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun updatePlacement(placement: Placement, save: Boolean) {
         val current = _state.value.model ?: return
+        _state.update { it.copy(lastResult=null,uploadedFile=null) }
         val previous = current.placement
         if (placementJob?.isActive != true && placement.rotationX == previous.rotationX && placement.rotationY == previous.rotationY && placement.rotationZ == previous.rotationZ && placement.scalePercent == previous.scalePercent) {
             val moved = current.copy(placement = placement, offsetX = current.offsetX+placement.centerX-previous.centerX, offsetY = current.offsetY+placement.centerY-previous.centerY)
@@ -428,7 +457,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun removeModel() {
-        _state.update { it.copy(model = null, lastResult = null, slice = SliceState.Idle) }
+        _state.update { it.copy(model = null, lastResult = null,uploadedFile=null, slice = SliceState.Idle) }
         viewModelScope.launch(Dispatchers.IO) { store.modelFile.delete() }
         persist()
     }
@@ -458,7 +487,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (!model.fits) return showMessage("Модель выходит за границы области печати. Переместите её или уменьшите масштаб.")
         if (state.slice is SliceState.Running) return
         sliceJob = viewModelScope.launch {
-            _state.update { it.copy(slice = SliceState.Running(0, "Подготовка")) }
+            _state.update { it.copy(slice = SliceState.Running(0, "Подготовка"),uploadedFile=null) }
             val job = withContext(Dispatchers.IO) { SliceJob.create(app, model.mesh, model.placement, inputs) }
             val resources = withContext(Dispatchers.IO) { EngineResources.ensure(app) }
             var response: EngineResponse? = null
@@ -481,6 +510,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 crashed -> fail("Движок нарезки неожиданно остановился.", job.logTail())
                 result == null -> fail("Движок нарезки не ответил.", job.logTail())
                 !result.ok -> fail(explain(result), job.logTail())
+                _state.value.model !== state.model || _state.value.inputs !== state.inputs -> _state.update { it.copy(slice=SliceState.Idle,lastResult=null,uploadedFile=null,screen=Screen.PLATE,message="Модель или параметры изменились. Повторите нарезку.") }
                 else -> showPreview(job, result, model.name)
             }
         }
@@ -538,6 +568,112 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // ---- online models and print preparation ---------------------------------------------
+
+    fun browseModels(url: String) {
+        if(ModelSource.of(url)==null) return showMessage("Выберите Thingiverse, Printables, Cults3D или MakerWorld")
+        _state.update { it.copy(screen=Screen.LIBRARY, libraryBrowser=url) }
+    }
+    fun closeModelBrowser() = _state.update { it.copy(libraryBrowser=null) }
+    fun addLibraryCard(url:String,title:String,image:String?=null,tags:List<String> = emptyList()):LibraryModel? {
+        val valid=runCatching { java.net.URI(url).let { it.scheme=="https"&&!it.host.isNullOrBlank()&&it.userInfo==null } }.getOrDefault(false)
+        if(!valid)return null
+        val source=ModelSource.of(url)
+        val old=_state.value.libraryModels.firstOrNull { it.url==url }
+        val card=old?.copy(title=title.ifBlank { old.title }.take(180), imageUrl=image ?: old.imageUrl,tags=(old.tags+tags).distinct().take(20))
+            ?: LibraryModel(source=source,url=url,title=title.ifBlank { source?.title ?: "Модель по ссылке" }.take(180),imageUrl=image,tags=tags.take(20))
+        _state.update { it.copy(libraryModels=(listOf(card)+it.libraryModels.filterNot { m->m.id==card.id }).take(100)) };persist()
+        return card
+    }
+    fun deleteLibraryCard(id:String) {
+        val card=_state.value.libraryModels.firstOrNull { it.id==id } ?: return
+        _state.update { it.copy(libraryModels=it.libraryModels.filterNot { m->m.id==id }) };persist()
+        card.localFile?.let { name-> File(app.filesDir,"library/$name").takeIf { name.matches(Regex("[a-zA-Z0-9.-]+")) }?.delete() }
+    }
+    fun downloadModel(url:String,page:String,title:String,filename:String,image:String?=null,userAgent:String="",tags:List<String> = emptyList()) {
+        if(_state.value.libraryBusy) return
+        val card=addLibraryCard(page,title,image,tags) ?: return showMessage("Проверьте ссылку на модель")
+        _state.update { it.copy(libraryBusy=true,libraryProgress="Скачивание модели…") }
+        viewModelScope.launch {
+            val local="${UUID.randomUUID()}.bin"
+            val file=File(app.filesDir,"library/$local").also { it.parentFile?.mkdirs() }
+            try {
+                withContext(Dispatchers.IO) {
+                    var last=-1L
+                    ModelDownload.fetch(url,file,headers={ target -> buildMap {
+                        CookieManager.getInstance().getCookie(target)?.let { put("Cookie",it) }
+                        if(userAgent.isNotBlank()) put("User-Agent",userAgent)
+                        put("Referer",page)
+                    } },progress={ received,total ->
+                        val value=if(total>0)received*100/total else received/(256*1024)
+                        if(value!=last) { last=value;_state.update { it.copy(libraryProgress=if(total>0)"Скачивание: $value%" else "Получено ${received/(1024*1024)} МБ") } }
+                    })
+                    ModelFiles.entries(file)
+                }
+                card.localFile?.let { old->if(old.matches(Regex("[a-zA-Z0-9.-]+")))File(app.filesDir,"library/$old").delete() }
+                val saved=card.copy(localFile=local,filename=filename.substringAfterLast('/').substringAfterLast('\\').take(180))
+                _state.update { it.copy(libraryBusy=false,libraryProgress=null,libraryBrowser=null,libraryModels=it.libraryModels.map { m->if(m.id==card.id)saved else m },modelCacheBytes=File(app.filesDir,"library").listFiles().orEmpty().sumOf { f->f.length() }) };persist()
+                openLibraryModel(card.id,setup=true)
+            } catch(e:Exception) { file.delete();_state.update { it.copy(libraryBusy=false,libraryProgress=null) };showMessage("Не удалось скачать модель: ${e.message}") }
+            catch(e:OutOfMemoryError) { file.delete();_state.update { it.copy(libraryBusy=false,libraryProgress=null) };showMessage("Модель слишком большая для телефона") }
+        }
+    }
+    fun openLibraryModel(id:String,setup:Boolean=false,entry:String?=null) {
+        if(_state.value.libraryBusy) return
+        val card=_state.value.libraryModels.firstOrNull { it.id==id } ?: return
+        val name=card.localFile ?: return openModelLink(card.url)
+        if(!name.matches(Regex("[a-zA-Z0-9.-]+")))return
+        val file=File(app.filesDir,"library/$name")
+        _state.update { it.copy(libraryBusy=true,libraryProgress="Открытие модели…",archiveChoices=emptyList(),pendingLibraryId=null) }
+        viewModelScope.launch {
+            try {
+                val entries=withContext(Dispatchers.IO) { ModelFiles.entries(file) }
+                if(entries.size>1 && entry==null) {
+                    pendingSetup=setup
+                    _state.update { it.copy(libraryBusy=false,libraryProgress=null,archiveChoices=entries,pendingLibraryId=id) };return@launch
+                }
+                val mesh=withContext(Dispatchers.IO) { ModelFiles.read(file,entry).also { mesh->file.setLastModified(System.currentTimeMillis());store.modelFile.outputStream().use { StlWriter.write(mesh,it) } } }
+                setModel(entry?.substringAfterLast('/') ?: card.filename ?: card.title,mesh,centeredPlacement())
+                _state.update { it.copy(libraryBusy=false,libraryProgress=null,lastResult=null,uploadedFile=null,printDialog=false,screen=if(setup)Screen.PRINT_SETUP else Screen.PLATE) };persist()
+            } catch(e:Exception) { _state.update { it.copy(libraryBusy=false,libraryProgress=null) };showMessage("Не удалось открыть модель: ${e.message}") }
+            catch(e:OutOfMemoryError) { _state.update { it.copy(libraryBusy=false,libraryProgress=null) };showMessage("Модель слишком большая для телефона") }
+        }
+    }
+    fun chooseArchiveEntry(entry:String) { val id=_state.value.pendingLibraryId ?: return;openLibraryModel(id,pendingSetup,entry) }
+    fun dismissArchive() = _state.update { it.copy(archiveChoices=emptyList(),pendingLibraryId=null) }
+    fun showPrintDialog(show:Boolean) = _state.update { it.copy(printDialog=show) }
+    fun openModelLink(text:String) {
+        if(!_state.value.ready) { pendingExternalLink=text;return }
+        if((text.startsWith("content://")||text.startsWith("file://"))&&_state.value.libraryModels.any { it.url==text }) { openModel(Uri.parse(text));return }
+        try {
+            when(val link=ModelLinks.parse(text)) {
+                is ModelLink.Page -> browseModels(link.url)
+                is ModelLink.File -> { navigate(Screen.LIBRARY);downloadModel(link.url,link.source ?: link.url,link.name,link.name) }
+                null -> { navigate(Screen.LIBRARY);showMessage("Введите запрос или HTTPS-ссылку на модель") }
+            }
+        } catch(e:Exception) { showMessage(e.message ?: "Проверьте ссылку") }
+    }
+    fun setModelTags(id:String,text:String) { _state.update { it.copy(libraryModels=it.libraryModels.map { m->if(m.id==id)m.copy(tags=ModelTags.parse(text))else m }) };persist() }
+    fun setCacheDays(days:Int) {
+        if(days !in ModelCache.durations)return
+        _state.update { it.copy(modelCacheDays=days) };persist();cleanModelCache()
+    }
+    fun cleanModelCache(all:Boolean=false) {
+        if(_state.value.libraryBusy)return
+        viewModelScope.launch {
+            val days=_state.value.modelCacheDays
+            val bytes=withContext(Dispatchers.IO) { ModelCache.clean(File(app.filesDir,"library"),days,all=all) }
+            _state.update { it.copy(libraryModels=it.libraryModels.map { m->if(m.localFile?.let { f->File(app.filesDir,"library/$f").isFile }==true)m else m.copy(localFile=null) },modelCacheBytes=File(app.filesDir,"library").listFiles().orEmpty().sumOf { f->f.length() }) };persist()
+            if(all)showMessage("Кэш очищен: ${bytes/(1024*1024)} МБ. Карточки моделей сохранены.")
+        }
+    }
+    fun startUploadedPrint() {
+        val s=_state.value;val file=s.uploadedFile ?: return
+        if(uploadedConnection!=s.connection) return showMessage("Загрузите G-code на выбранный принтер")
+        showPrintDialog(false)
+        printerCommand { it.startPrint(file) }
+    }
+
     // ---- navigation and messages ---------------------------------------------------------
 
     fun openSettings(type: PresetType = PresetType.PROCESS) = _state.update { it.copy(screen = Screen.SETTINGS, settingsType = type) }
@@ -547,22 +683,89 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun saveConnection(connection: PrinterConnection): Boolean = try {
         val normalized = connection.normalized()
         require(!normalized.apiKey.contains('\n') && !normalized.apiKey.contains('\r')) { "Недопустимый API-ключ" }
-        _state.update { it.copy(connection = normalized, printerStatus = null) }
+        val s=_state.value
+        val existing=s.printers.firstOrNull { it.id==s.activePrinterId }
+        val printer=existing?.copy(connection=normalized) ?: SavedPrinter(name=s.inputs?.machine?.string("name") ?: "Принтер",connection=normalized,machineProfile=s.edits.importedMachine?.string("name"))
+        _state.update { it.copy(connection = normalized, printerStatus = null, printers=it.printers.filterNot { p->p.id==printer.id }+printer, activePrinterId=printer.id,
+            telemetry=null,telemetryAt=null,temperatureHistory=emptyList(),deviceError=null,uploadedFile=null,lastResult=if(it.connection==normalized)it.lastResult else null) }
+        telemetryClient=null;historyAt=0
         persist()
         true
     } catch (e: Exception) { showMessage(e.message ?: "Проверьте адрес"); false }
+
+    fun savePrinter(name:String,connection:PrinterConnection,id:String?=null,machineProfile:String?=null):Boolean = try {
+        require(name.isNotBlank()) { "Укажите имя принтера" }
+        val normalized=connection.normalized()
+        require(!normalized.apiKey.contains('\n')&&!normalized.apiKey.contains('\r'))
+        val printer=SavedPrinter(id ?: UUID.randomUUID().toString(),name.trim().take(100),normalized,machineProfile)
+        _state.update { it.copy(printers=it.printers.filterNot { p->p.id==printer.id }+printer) }
+        selectSavedPrinter(printer.id);true
+    } catch(e:Exception) { showMessage(e.message ?: "Проверьте подключение");false }
+    fun selectSavedPrinter(id:String) {
+        val p=_state.value.printers.firstOrNull { it.id==id } ?: return
+        if(_state.value.deviceBusy || _state.value.uploadPercent!=null) return showMessage("Дождитесь завершения команды")
+        telemetryClient=null;historyAt=0
+        _state.update { it.copy(connection=p.connection,activePrinterId=id,telemetry=null,telemetryAt=null,deviceError=null,temperatureHistory=emptyList(),printerStatus=null,connecting=false,uploadedFile=null,lastResult=if(it.activePrinterId==id)it.lastResult else null) }
+        p.machineProfile?.let { name->_state.value.userPresets.firstOrNull { it.type==PresetType.MACHINE&&it.name==name }?.let(::selectUserPreset) }
+        persist()
+    }
+    fun deletePrinter(id:String) {
+        if(_state.value.deviceBusy||_state.value.uploadPercent!=null)return
+        _state.update { it.copy(printers=it.printers.filterNot { p->p.id==id }) }
+        if(_state.value.activePrinterId==id) {
+            val next=_state.value.printers.firstOrNull()
+            if(next!=null)selectSavedPrinter(next.id) else _state.update { it.copy(connection=PrinterConnection(),activePrinterId=null,telemetry=null,temperatureHistory=emptyList(),telemetryAt=null,uploadedFile=null,lastResult=null) }
+        }
+        persist()
+    }
+    suspend fun refreshTelemetry(forceHistory:Boolean=false) {
+        val connection=_state.value.connection
+        if(connection.apiUrl.isBlank())return
+        if(telemetryConnection!=connection || telemetryClient==null) { telemetryConnection=connection;telemetryClient=MoonrakerClient(connection);historyAt=0 }
+        val client=telemetryClient ?: return
+        try {
+            val snapshot=withContext(Dispatchers.IO) { client.snapshot() }
+            _state.update { if(it.connection==connection)it.copy(telemetry=snapshot,telemetryAt=System.currentTimeMillis(),deviceError=null)else it }
+            if(forceHistory || System.currentTimeMillis()-historyAt>15000) {
+                try {
+                    val history=withContext(Dispatchers.IO) { client.temperatureHistory() }
+                    historyAt=System.currentTimeMillis()
+                    _state.update { if(it.connection==connection)it.copy(temperatureHistory=history,temperatureHistoryError=null)else it }
+                } catch(e:CancellationException) { throw e }
+                catch(e:Exception) { historyAt=System.currentTimeMillis();_state.update { if(it.connection==connection)it.copy(temperatureHistoryError="История температур недоступна: ${e.message}")else it } }
+            }
+        } catch(e:CancellationException) { throw e }
+        catch(e:Exception) { _state.update { if(it.connection==connection)it.copy(deviceError=e.message ?: "Нет связи с Klipper",telemetry=null)else it } }
+    }
+    fun printerCommand(command:(MoonrakerClient)->Unit) {
+        val connection=_state.value.connection
+        if(connection.apiUrl.isBlank())return showMessage("Настройте подключение Moonraker")
+        if(_state.value.deviceBusy)return
+        _state.update { it.copy(deviceBusy=true,deviceError=null) }
+        viewModelScope.launch {
+            try { withContext(Dispatchers.IO) { command(MoonrakerClient(connection)) };showMessage("Команда выполнена") }
+            catch(e:Exception) { val message=e.message ?: "Команда отклонена";_state.update { it.copy(deviceError=message) };showMessage(message) }
+            finally { _state.update { it.copy(deviceBusy=false) } }
+        }
+    }
+    fun emergencyStop() {
+        val connection=_state.value.connection
+        if(connection.apiUrl.isBlank())return
+        viewModelScope.launch { try { withContext(Dispatchers.IO) { MoonrakerClient(connection).emergencyStop() };showMessage("Аварийная остановка отправлена") }catch(e:Exception) { showMessage("Не удалось отправить STOP: ${e.message}") } }
+    }
 
     fun dismissUploadError() = _state.update { it.copy(uploadError = null) }
 
     fun testPrinter() {
         if (_state.value.connecting) return
+        telemetryClient=null;historyAt=0
         val connection = _state.value.connection
         _state.update { it.copy(connecting = true, printerStatus = null) }
         viewModelScope.launch {
             val status = withContext(Dispatchers.IO) {
                 runCatching { MoonrakerClient(connection).info() }.getOrElse { "Нет подключения: ${it.message}" }
             }
-            _state.update { it.copy(connecting = false, printerStatus = status) }
+            _state.update { if(it.connection==connection) it.copy(connecting = false, printerStatus = status) else it }
         }
     }
 
@@ -591,7 +794,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun upload(file: File, name: String) {
-        val connection = _state.value.connection
+        val before=_state.value
+        val connection = before.connection
         if (connection.apiUrl.isBlank()) {
             _state.update { it.copy(screen = Screen.DEVICE, message = "Укажите адрес Moonraker для загрузки") }; return
         }
@@ -602,7 +806,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val uploaded = withContext(Dispatchers.IO) {
                     MoonrakerClient(connection).upload(file, name) { percent -> _state.update { it.copy(uploadPercent = percent) } }
                 }
-                _state.update { it.copy(uploadPercent = null, uploadedFile = uploaded, message = "Загружено: $uploaded") }
+                uploadedConnection=connection
+                _state.update { it.copy(uploadPercent = null, uploadedFile = if(it.connection==connection && it.activePrinterId==before.activePrinterId && it.model===before.model && it.inputs===before.inputs)uploaded else null, message = "Загружено: $uploaded") }
             } catch (e: Exception) {
                 _state.update { it.copy(uploadPercent = null, uploadError = "Ошибка загрузки: ${e.message}") }
             }
@@ -619,7 +824,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun persist() {
         val state = _state.value
-        val saved = SavedState(state.selection, state.edits, state.model?.name, state.model?.placement, state.favorites, state.connection, state.userPresets, state.renderOptions)
+        val saved = SavedState(state.selection, state.edits, state.model?.name, state.model?.placement, state.favorites, state.connection, state.userPresets, state.renderOptions,
+            state.printers,state.activePrinterId,state.libraryModels,state.modelCacheDays)
         saves.trySend(saved)
     }
 }

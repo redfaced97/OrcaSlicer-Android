@@ -27,9 +27,9 @@ class GlProgram(vertexSource: String, fragmentSource: String) {
         GLES20.glDeleteShader(fs)
     }
 
-    fun attribute(name: String): Int = locations.getOrPut("a:$name") { GLES20.glGetAttribLocation(id, name) }
+    fun attribute(name: String): Int = locations.getOrPut("a:${name}") { GLES20.glGetAttribLocation(id, name) }
 
-    fun uniform(name: String): Int = locations.getOrPut("u:$name") { GLES20.glGetUniformLocation(id, name) }
+    fun uniform(name: String): Int = locations.getOrPut("u:${name}") { GLES20.glGetUniformLocation(id, name) }
 
     fun use() = GLES20.glUseProgram(id)
 

@@ -1,5 +1,6 @@
 package io.github.whoxllm.orcamicro.ui
 
+import io.github.whoxllm.orcamicro.core.i18n.tr
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -17,7 +18,7 @@ import io.github.whoxllm.orcamicro.R
 
 @Composable
 fun DesktopHeader(state: UiState, viewModel: MainViewModel, actions: @Composable RowScope.() -> Unit = {}) {
-    val tabs = listOf(Screen.PLATE to "Подготовка", Screen.PREVIEW to "Просмотр", Screen.LIBRARY to "Модели", Screen.DEVICE to "Принтер", Screen.ABOUT to "О программе")
+    val tabs = listOf(Screen.PLATE to tr("Подготовка"), Screen.PREVIEW to tr("Просмотр"), Screen.LIBRARY to tr("Модели"), Screen.DEVICE to tr("Принтер"), Screen.ABOUT to tr("О программе"))
     val config = LocalConfiguration.current
     val compactTabs = config.screenWidthDp < 400 || config.fontScale > 1.2f
     val selected = when (state.screen) { Screen.SETTINGS, Screen.PRESETS, Screen.PRINT_SETUP -> Screen.PLATE; else -> state.screen }
@@ -25,10 +26,10 @@ fun DesktopHeader(state: UiState, viewModel: MainViewModel, actions: @Composable
         Surface {
             Row(Modifier.fillMaxWidth().heightIn(min = 52.dp).padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Image(painterResource(R.drawable.orca_logo), null, Modifier.size(26.dp))
-                Text(if (state.screen == Screen.PRINT_SETUP) "Quick Print" else if (state.screen == Screen.PRESETS) "Профили" else tabs.firstOrNull { it.first == selected }?.second.orEmpty(), Modifier.weight(1f).padding(start = 8.dp), style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                if(state.screen != Screen.DEVICE && state.screen != Screen.PRESETS) {
-                    IconButton(onClick = { viewModel.openPreset(state.settingsType) }) { OrcaIcon(OrcaAction.Library, "Библиотека профилей") }
-                    IconButton(onClick = { viewModel.openSettings() }) { OrcaIcon(OrcaAction.Settings, "Параметры печати") }
+                Text(if (state.screen == Screen.PRINT_SETUP) "Quick Print" else if (state.screen == Screen.PRESETS) tr("Профили") else tabs.firstOrNull { it.first == selected }?.second.orEmpty(), Modifier.weight(1f).padding(start = 8.dp), style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if(state.screen in setOf(Screen.PLATE,Screen.SETTINGS,Screen.PREVIEW,Screen.PRINT_SETUP)) {
+                    IconButton(onClick = { viewModel.openPreset(state.settingsType) }) { OrcaIcon(OrcaAction.Library, tr("Библиотека профилей")) }
+                    IconButton(onClick = { viewModel.openSettings() }) { OrcaIcon(OrcaAction.Settings, tr("Параметры печати")) }
                 }
                 actions()
             }
@@ -37,7 +38,7 @@ fun DesktopHeader(state: UiState, viewModel: MainViewModel, actions: @Composable
             tabs.forEach { (screen, title) ->
                 Tab(selected = selected == screen, modifier = Modifier.semantics { contentDescription = title }, onClick = { viewModel.navigate(screen) }, selectedContentColor = MaterialTheme.colorScheme.primary, unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant) {
                     Box(Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(horizontal = 2.dp), contentAlignment = Alignment.Center) {
-                        Text(if(compactTabs) when(screen) { Screen.PLATE -> "Стол"; Screen.PREVIEW -> "Слои"; Screen.LIBRARY -> "Модели"; Screen.DEVICE -> "Принтер"; else -> "Инфо" } else title, style = MaterialTheme.typography.labelSmall, maxLines = 2, textAlign = TextAlign.Center)
+                        Text(if(compactTabs) when(screen) { Screen.PLATE -> tr("Стол"); Screen.PREVIEW -> tr("Слои"); Screen.LIBRARY -> tr("Модели"); Screen.DEVICE -> tr("Принтер"); else -> tr("Инфо") } else title, style = MaterialTheme.typography.labelSmall, maxLines = 2, textAlign = TextAlign.Center)
                     }
                 }
             }

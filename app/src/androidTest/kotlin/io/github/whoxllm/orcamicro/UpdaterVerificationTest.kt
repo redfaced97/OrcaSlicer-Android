@@ -22,9 +22,9 @@ class UpdaterVerificationTest {
     }
     @Test fun correctlyHashedApksStillRequireSamePackageAndNewerVersion() {
         val own=File(context.applicationInfo.sourceDir)
-        try{AppUpdater.verifyApk(context,own,release(own));fail("The installed version cannot be offered as an upgrade")}catch(e:IllegalArgumentException){assertTrue(e.message.orEmpty().contains("более новой"))}
+        try{AppUpdater.verifyApk(context,own,release(own));fail("The installed version cannot be offered as an upgrade")}catch(e:IllegalArgumentException){assertTrue(listOf("более новой","newer version").any{e.message.orEmpty().contains(it)})}
         val other=File(instrumentation.context.applicationInfo.sourceDir)
-        try{AppUpdater.verifyApk(context,other,release(other));fail("A correctly signed test APK must not replace another package")}catch(e:IllegalArgumentException){assertTrue(e.message.orEmpty().contains("другому приложению"))}
+        try{AppUpdater.verifyApk(context,other,release(other));fail("A correctly signed test APK must not replace another package")}catch(e:IllegalArgumentException){assertTrue(listOf("другому приложению","different application").any{e.message.orEmpty().contains(it)})}
     }
     @Test fun installerFileProviderExposesOnlyTheUpdateDirectory() {
         val update=File(context.getExternalFilesDir(null),"updates/provider-test.apk").apply{parentFile!!.mkdirs();writeText("fixture")}

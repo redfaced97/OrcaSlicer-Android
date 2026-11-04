@@ -1,5 +1,6 @@
 package io.github.whoxllm.orcamicro.update
 
+import io.github.whoxllm.orcamicro.core.i18n.tr
 import android.Manifest
 import android.app.*
 import android.content.Context
@@ -48,7 +49,7 @@ class AppUpdater private constructor(private val context:Context) {
     }
     private fun readRelease(key:String):AppRelease? { return runCatching { Json.decodeFromString(AppRelease.serializer(),prefs.getString(key,null) ?: return null) }.getOrNull() }
     private fun downloadId()=prefs.getLong("download_id",-1)
-    private fun apkFile(release:AppRelease)=File(context.getExternalFilesDir(null) ?: error("Хранилище обновлений недоступно"),"updates/${release.apkName}")
+    private fun apkFile(release:AppRelease)=File(context.getExternalFilesDir(null) ?: error(tr("Хранилище обновлений недоступно")),"updates/${release.apkName}")
     fun notificationsAllowed()=ContextCompat.checkSelfPermission(context,Manifest.permission.POST_NOTIFICATIONS)==PackageManager.PERMISSION_GRANTED&&context.getSystemService(NotificationManager::class.java).areNotificationsEnabled()
     fun shouldAskNotifications()=!notificationsAllowed()&&!prefs.getBoolean("notification_asked",false)
     fun notificationAsked(){prefs.edit().putBoolean("notification_asked",true).apply()}
@@ -65,10 +66,10 @@ class AppUpdater private constructor(private val context:Context) {
             val release=withContext(Dispatchers.IO) { AppReleases.latest()?.takeIf { it.newerThan(BuildConfig.VERSION_NAME) } }
             prefs.edit().putLong("last_check",System.currentTimeMillis()).putString("latest",release?.let { Json.encodeToString(AppRelease.serializer(),it) }).apply()
             _state.update { s->s.copy(checking=false,release=if(s.stage in setOf(UpdateStage.DOWNLOADING,UpdateStage.VERIFYING,UpdateStage.READY))s.release else release,
-                showDialog=s.showDialog||(release!=null&&(show||prefs.getString("dismissed",null)!=release.version)),status=if(release==null)"Установлена актуальная версия ${BuildConfig.VERSION_NAME}" else "Доступна версия ${release.version}") }
+                showDialog=s.showDialog||(release!=null&&(show||prefs.getString("dismissed",null)!=release.version)),status=if(release==null)tr("Установлена актуальная версия {0}" ,BuildConfig.VERSION_NAME) else tr("Доступна версия {0}" ,release.version)) }
             if(release!=null)notifyAvailable(release)
         }catch(e:kotlinx.coroutines.CancellationException){_state.update { it.copy(checking=false) };throw e}
-        catch(e:Exception){_state.update { it.copy(checking=false,error=if(show)e.message ?: "Не удалось проверить обновления" else it.error) }}
+        catch(e:Exception){_state.update { it.copy(checking=false,error=if(show)e.message ?: tr("Не удалось проверить обновления") else it.error) }}
         finally{checkLock.unlock()}
     }
     fun show(){_state.update { it.copy(showDialog=true) }}
@@ -77,15 +78,15 @@ class AppUpdater private constructor(private val context:Context) {
         val release=_state.value.release ?: return
         if(_state.value.stage in setOf(UpdateStage.DOWNLOADING,UpdateStage.VERIFYING))return
         try {
-            require(release.newerThan(BuildConfig.VERSION_NAME)) { "Обновление уже установлено" }
-            require(release.apkName=="OrcaSlicer-arm64-v${release.version}.apk"&&release.apkUrl=="https://github.com/${AppReleases.REPOSITORY}/releases/download/v${release.version}/${release.apkName}") { "Неверный источник обновления" }
+            require(release.newerThan(BuildConfig.VERSION_NAME)) { tr("Обновление уже установлено") }
+            require(release.apkName=="OrcaSlicer-arm64-v${release.version}.apk"&&release.apkUrl=="https://github.com/${AppReleases.REPOSITORY}/releases/download/v${release.version}/${release.apkName}") { tr("Неверный источник обновления") }
             clearDownload(remove=true)
             val file=apkFile(release);file.parentFile?.mkdirs();file.delete()
-            val id=downloads.enqueue(DownloadManager.Request(Uri.parse(release.apkUrl)).setTitle("OrcaSlicer ${release.version}").setDescription("Загрузка обновления ARM64").setMimeType("application/vnd.android.package-archive")
+            val id=downloads.enqueue(DownloadManager.Request(Uri.parse(release.apkUrl)).setTitle("OrcaSlicer ${release.version}").setDescription(tr("Загрузка обновления ARM64")).setMimeType("application/vnd.android.package-archive")
                 .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED).setAllowedOverRoaming(false).setDestinationUri(Uri.fromFile(file)))
             kotlin.check(prefs.edit().putLong("download_id",id).putString("download_release",Json.encodeToString(AppRelease.serializer(),release)).putBoolean("auto_install",true).commit())
             _state.update { it.copy(stage=UpdateStage.DOWNLOADING,progress=0,error=null,showDialog=true,autoInstall=false) }
-        }catch(e:Exception){_state.update { it.copy(stage=UpdateStage.FAILED,error=e.message ?: "Не удалось начать загрузку") }}
+        }catch(e:Exception){_state.update { it.copy(stage=UpdateStage.FAILED,error=e.message ?: tr("Не удалось начать загрузку")) }}
     }
     fun cancelDownload() { clearDownload(remove=true);_state.update { it.copy(stage=UpdateStage.IDLE,progress=null,error=null,autoInstall=false) } }
     private fun clearDownload(remove:Boolean) {
@@ -103,8 +104,8 @@ class AppUpdater private constructor(private val context:Context) {
                     Triple(c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS)),c.getLong(c.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR)),c.getLong(c.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES)))
                 }
             }
-            if(status==null||status.first==DownloadManager.STATUS_FAILED)error("Загрузка обновления прервана. Проверьте сеть и свободное место, затем повторите.")
-            if(status.second>AppReleases.MAX_APK_BYTES){downloads.remove(id);error("Обновление превышает допустимый размер")}
+            if(status==null||status.first==DownloadManager.STATUS_FAILED)error(tr("Загрузка обновления прервана. Проверьте сеть и свободное место, затем повторите."))
+            if(status.second>AppReleases.MAX_APK_BYTES){downloads.remove(id);error(tr("Обновление превышает допустимый размер"))}
             if(status.first==DownloadManager.STATUS_SUCCESSFUL) {
                 if(prefs.getLong("verified_id",-1)!=id) {
                     _state.update { it.copy(stage=UpdateStage.VERIFYING,release=release,progress=100,error=null) }
@@ -116,13 +117,13 @@ class AppUpdater private constructor(private val context:Context) {
                 } else _state.update { it.copy(stage=UpdateStage.READY,release=release,progress=100,autoInstall=prefs.getBoolean("auto_install",false)) }
             }else _state.update { it.copy(stage=UpdateStage.DOWNLOADING,release=release,progress=if(status.third>0)(status.second*100/status.third).toInt().coerceIn(0,100) else null) }
         }catch(e:kotlinx.coroutines.CancellationException){throw e}
-        catch(e:Exception){if(id==downloadId()){prefs.edit().putBoolean("auto_install",false).apply();_state.update { it.copy(stage=UpdateStage.FAILED,error=e.message ?: "Не удалось проверить APK",autoInstall=false) }}}
+        catch(e:Exception){if(id==downloadId()){prefs.edit().putBoolean("auto_install",false).apply();_state.update { it.copy(stage=UpdateStage.FAILED,error=e.message ?: tr("Не удалось проверить APK"),autoInstall=false) }}}
         finally{verifyLock.unlock()}
     }
     fun consumeAutoInstall(){prefs.edit().putBoolean("auto_install",false).apply();_state.update { it.copy(autoInstall=false) }}
     suspend fun installerIntent():Intent=withContext(Dispatchers.IO) {
-        val s=_state.value;val release=s.release ?: error("Нет обновления")
-        require(s.stage==UpdateStage.READY) { "Дождитесь проверки APK" }
+        val s=_state.value;val release=s.release ?: error(tr("Нет обновления"))
+        require(s.stage==UpdateStage.READY) { tr("Дождитесь проверки APK") }
         val file=apkFile(release);verifyApk(context,file,release)
         val uri=FileProvider.getUriForFile(context,"${context.packageName}.files",file)
         @Suppress("DEPRECATION")
@@ -131,13 +132,13 @@ class AppUpdater private constructor(private val context:Context) {
     fun reportError(message:String){_state.update { it.copy(error=message,showDialog=true,autoInstall=false) }}
     private fun notifyAvailable(release:AppRelease) {
         if(!notificationsAllowed()||prefs.getString("notified",null)==release.version)return
-        notify(7601,"Доступна OrcaSlicer ${release.version}","Посмотреть изменения и скачать обновление")
+        notify(7601,tr("Доступна OrcaSlicer {0}" ,release.version),tr("Посмотреть изменения и скачать обновление"))
         prefs.edit().putString("notified",release.version).apply()
     }
-    private fun notifyReady(release:AppRelease) { if(notificationsAllowed())notify(7602,"OrcaSlicer ${release.version} готова к установке","Нажмите, чтобы установить проверенное обновление") }
+    private fun notifyReady(release:AppRelease) { if(notificationsAllowed())notify(7602,tr("OrcaSlicer {0} готова к установке" ,release.version),tr("Нажмите, чтобы установить проверенное обновление")) }
     private fun notify(id:Int,title:String,text:String) {
         val manager=context.getSystemService(NotificationManager::class.java)
-        manager.createNotificationChannel(NotificationChannel("app_updates","Обновления OrcaSlicer",NotificationManager.IMPORTANCE_DEFAULT))
+        manager.createNotificationChannel(NotificationChannel("app_updates",tr("Обновления OrcaSlicer"),NotificationManager.IMPORTANCE_DEFAULT))
         val intent=Intent(context,MainActivity::class.java).setAction(ACTION_UPDATES).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         val pending=PendingIntent.getActivity(context,id,intent,PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         runCatching { manager.notify(id,NotificationCompat.Builder(context,"app_updates").setSmallIcon(R.drawable.ic_notification).setContentTitle(title).setContentText(text).setContentIntent(pending).setAutoCancel(true).build()) }
@@ -149,13 +150,13 @@ class AppUpdater private constructor(private val context:Context) {
         fun verifyApk(context:Context,file:File,release:AppRelease) {
             AppReleases.verifyDownload(file,release)
             val pm=context.packageManager
-            val apk=pm.getPackageArchiveInfo(file.absolutePath,PackageManager.GET_SIGNING_CERTIFICATES) ?: error("Файл обновления не является APK")
-            require(apk.packageName==context.packageName) { "APK принадлежит другому приложению" }
+            val apk=pm.getPackageArchiveInfo(file.absolutePath,PackageManager.GET_SIGNING_CERTIFICATES) ?: error(tr("Файл обновления не является APK"))
+            require(apk.packageName==context.packageName) { tr("APK принадлежит другому приложению") }
             val current=pm.getPackageInfo(context.packageName,PackageManager.GET_SIGNING_CERTIFICATES)
-            require(apk.longVersionCode>current.longVersionCode&&apk.versionName==release.version) { "APK не является более новой версией приложения" }
+            require(apk.longVersionCode>current.longVersionCode&&apk.versionName==release.version) { tr("APK не является более новой версией приложения") }
             fun signatures(info:android.content.pm.PackageInfo)=info.signingInfo?.apkContentsSigners?.map { signature->MessageDigest.getInstance("SHA-256").digest(signature.toByteArray()).toList() }?.toSet().orEmpty()
-            val installed=signatures(current);require(installed.isNotEmpty()&&signatures(apk)==installed) { "Подпись APK отличается от установленного приложения. Установка заблокирована." }
-            ZipFile(file).use { require(it.getEntry("lib/arm64-v8a/liborcamicro_engine.so")!=null) { "В обновлении отсутствует ARM64-движок" } }
+            val installed=signatures(current);require(installed.isNotEmpty()&&signatures(apk)==installed) { tr("Подпись APK отличается от установленного приложения. Установка заблокирована.") }
+            ZipFile(file).use { require(it.getEntry("lib/arm64-v8a/liborcamicro_engine.so")!=null) { tr("В обновлении отсутствует ARM64-движок") } }
         }
     }
 }

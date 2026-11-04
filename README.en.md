@@ -14,6 +14,19 @@ Prepare models, slice locally on your phone, inspect toolpaths and send G-code t
 
 [Download APK](https://github.com/redfaced97/OrcaSlicer-Android/releases/latest) · [User guide (RU)](docs/USAGE.md) · [Import profiles (RU)](docs/PROFILES.md) · [Build instructions (RU)](docs/BUILDING.md)
 
+## New in 0.6.5
+
+- Russian and English UI, selected from Android's locale or overridden in settings.
+- Print start, elapsed active time, time including pauses and approximate finish time.
+- Temperature windows of 1 / 5 / 10 minutes and polling every 1 / 5 / 10 / 30 seconds.
+- OctoPrint connections, controls, telemetry, file upload and printing alongside Moonraker.
+- Animated statistics for one printer or all saved servers; offline errors are listed separately.
+- Read detected printer settings, review them and save a new local OrcaSlicer preset.
+- **Upload | ∧**: send to printer or save G-code locally. The centered send panel has a model preview and separate **Upload** and **Print** buttons.
+- Extended 3MF support: package root relationships, components and optional OrcaSlicer / Bambu Studio project settings.
+
+[Detailed guide, data sources and limitations (RU)](docs/PRINTERS.md). OctoPrint statistics use counters of retained files; unknown total durations are shown as `—`.
+
 ## Screenshots
 
 <p align="center">
@@ -36,7 +49,7 @@ Prepare models, slice locally on your phone, inspect toolpaths and send G-code t
 - **Model cache:** files expire 7 days after their last opening by default. Choose 1, 3, 7, 14 or 30 days, disable expiry, or clear files manually. Saved cards and the current plate model remain available.
 - **Placement:** move, rotate, scale, center and check whether the model fits the build volume.
 - **OrcaSlicer profiles:** imported printers, filaments and processes are separated from bundled presets. Import individual JSON files or profile bundles and save edited presets.
-- **Settings:** 638 parameters with Russian labels and help, search, categories, favorites and modified-value filtering. The app interface currently uses Russian.
+- **Settings:** 638 parameters with English and Russian labels and help, search, categories, favorites and modified-value filtering.
 - **Filament color:** palette and HEX input, including colors from imported profiles.
 - **Local slicing:** OrcaSlicer through JNI, normal and tree supports, G-code export and Android sharing.
 - **Toolpath preview:** layer selection, travel visibility and line-type filters. The visible **Dev menu** offers camera views, SSAO, shadows, plate surfaces and render-resolution controls.
@@ -66,9 +79,9 @@ Intermediate [GitHub Actions builds](https://github.com/redfaced97/OrcaSlicer-An
 3. Use **Подготовка → Добавить** to open an STL, 3MF or model ZIP. Check placement, dimensions and settings.
 4. Press **Нарезать** and inspect the layers under **Просмотр**.
 5. Alternatively, use **Quick Print** on a catalog card or **К печати** on the plate. Choose your printer and profiles, then adjust layer height, infill and walls. Press **Нарезать для печати**, followed by **Отправить на печать**.
-6. Confirm that the selected filament is loaded and the plate is clear. **Загрузить G-code** uploads without starting the print. **Начать печать** starts it as a separate action.
+6. Confirm that the selected filament is loaded and the plate is clear. **Upload / Загрузить** stores the file without starting. **Print / Напечатать** uploads and starts printing after confirmation.
 
-The filament reminder reads: **“Make sure this filament is loaded in the printer.”** The actual interface displays the Russian wording.
+The filament reminder reads: **“Make sure this filament is loaded in the printer.”** The interface displays the selected language.
 
 Changing the model, print settings or selected printer invalidates the previous slice. The printer controller's **STOP** button opens a text confirmation: enter `Stop Klipper!` exactly. This sends an emergency shutdown; Klipper requires `FIRMWARE_RESTART` before normal operation can resume. Use Pause or Cancel for ordinary print-job control.
 
@@ -100,7 +113,7 @@ Printables and MakerWorld search work without a key. Thingiverse requires your A
 
 Cults API provides metadata but does not provide model files. Attach an STL, ZIP or 3MF you already obtained from the creator or purchased. If an API does not report a price, the card explicitly says so. Price and license are shown separately. Site APIs and access requirements may change. [Catalog, links and cache guide (RU)](docs/MODELS.md).
 
-The app currently handles **one model, one plate and one material**. 3MF is imported as geometry: objects are combined; the author's print settings, painting, AMS assignments and multi-plate layout are not imported. STEP/OBJ, multi-material slicing, support/seam painting, modifiers and painted variable layer height are not implemented.
+The app currently handles **one model, one plate and one material**. 3MF objects are combined into one model. Recognized OrcaSlicer / Bambu Studio project settings can be reviewed and applied separately; start/end G-code is retained from your preset and the first material is used. Painting, AMS assignments and multi-plate layout are not imported. STEP/OBJ, multi-material slicing, support/seam painting, modifiers and painted variable layer height are not implemented.
 
 An exposed setting does not add a missing workflow. Matching every desktop OrcaSlicer G-code output or “90% compatibility” has not been demonstrated. [Compatibility details (RU)](docs/COMPATIBILITY.md).
 

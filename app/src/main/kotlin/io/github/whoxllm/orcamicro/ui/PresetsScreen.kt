@@ -1,5 +1,6 @@
 package io.github.whoxllm.orcamicro.ui
 
+import io.github.whoxllm.orcamicro.core.i18n.tr
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -40,54 +41,54 @@ fun PresetsScreen(state: UiState, viewModel: MainViewModel) {
     fun matches(text: String) = query.trim().split(' ').all { text.contains(it, true) }
     Scaffold(topBar = {
         DesktopHeader(state, viewModel) {
-            IconButton(onClick = viewModel::back) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "На стол") }
-            IconButton(onClick = { import.launch(arrayOf("application/json", "text/*", "application/octet-stream")) }) { OrcaIcon(OrcaAction.Import, "Импорт профилей") }
-            IconButton(onClick = { name = (viewModel.presetFor(type)?.string("name").orEmpty() + " — копия"); save = true }) { OrcaIcon(OrcaAction.Save, "Сохранить профиль как") }
+            IconButton(onClick = viewModel::back) { Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("На стол")) }
+            IconButton(onClick = { import.launch(arrayOf("application/json", "text/*", "application/octet-stream")) }) { OrcaIcon(OrcaAction.Import, tr("Импорт профилей")) }
+            IconButton(onClick = { name = (viewModel.presetFor(type)?.string("name").orEmpty() + tr(" — копия")); save = true }) { OrcaIcon(OrcaAction.Save, tr("Сохранить профиль как")) }
         }
     }, snackbarHost = { SnackbarHost(snackbar) }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
             TabRow(PresetType.entries.indexOf(type)) {
                 PresetType.entries.forEach { t -> Tab(selected = type == t, onClick = { type = t; vendor = null; browsePrinters = false; query = "" }, text = { Text(t.title()) }) }
             }
-            OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth().padding(12.dp), placeholder = { Text("Поиск профиля") }, singleLine = true)
+            OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth().padding(12.dp), placeholder = { Text(tr("Поиск профиля")) }, singleLine = true)
             LazyColumn(Modifier.weight(1f)) {
                 if (!browsePrinters || type != PresetType.MACHINE) {
-                    item { SectionLabel("Мои профили") }
+                    item { SectionLabel(tr("Мои профили")) }
                     val own = state.userPresets.filter { it.type == type && matches(it.name) }
-                    if (own.isEmpty()) item { Text("Импортируйте JSON или набор из конфигурации OrcaSlicer", Modifier.padding(horizontal = 16.dp, vertical = 8.dp), style = MaterialTheme.typography.bodySmall) }
+                    if (own.isEmpty()) item { Text(tr("Импортируйте JSON или набор из конфигурации OrcaSlicer"), Modifier.padding(horizontal = 16.dp, vertical = 8.dp), style = MaterialTheme.typography.bodySmall) }
                     items(own, key = { "user:${it.id}" }) { p ->
-                        PresetItem(p.name, "Пользовательский", active?.string("name") == p.name, p.preset.first("default_filament_colour") ?: p.preset.first("filament_colour")) {
+                        PresetItem(p.name, tr("Пользовательский"), active?.string("name") == p.name, p.preset.first("default_filament_colour") ?: p.preset.first("filament_colour")) {
                             viewModel.selectUserPreset(p); viewModel.back()
                         }
                     }
                     item {
                         Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
-                            TextButton(onClick = { import.launch(arrayOf("*/*")) }, modifier = Modifier.weight(1f)) { OrcaIcon(OrcaAction.Add, null); Text("Импортировать", Modifier.padding(start = 6.dp)) }
-                            TextButton(onClick = { name = viewModel.presetFor(type)?.string("name").orEmpty() + " — копия"; save = true }, modifier = Modifier.weight(1f)) { OrcaIcon(OrcaAction.Save, null); Text("Сохранить как", Modifier.padding(start = 6.dp)) }
+                            TextButton(onClick = { import.launch(arrayOf("*/*")) }, modifier = Modifier.weight(1f)) { OrcaIcon(OrcaAction.Add, null); Text(tr("Импортировать"), Modifier.padding(start = 6.dp)) }
+                            TextButton(onClick = { name = viewModel.presetFor(type)?.string("name").orEmpty() + tr(" — копия"); save = true }, modifier = Modifier.weight(1f)) { OrcaIcon(OrcaAction.Save, null); Text(tr("Сохранить как"), Modifier.padding(start = 6.dp)) }
                         }
                     }
                 }
-                item { SectionLabel("Штатные профили OrcaSlicer") }
+                item { SectionLabel(tr("Штатные профили OrcaSlicer")) }
                 when (type) {
                     PresetType.MACHINE -> {
                         if (!browsePrinters) {
-                            item { PresetItem("+ Добавить принтер", "Выберите марку и модель", false) { browsePrinters = true; query = "" } }
+                            item { PresetItem(tr("+ Добавить принтер"), tr("Выберите марку и модель"), false) { browsePrinters = true; query = "" } }
                             item { PresetItem(selection.printer, displayVendor(selection.vendor), active == null) { viewModel.selectPrinter(selection.vendor, selection.printer); viewModel.back() } }
                         } else if (vendor == null) {
                             items(catalog.printerVendors.filter { matches(displayVendor(it.name)) }, key = { "vendor:${it.name}" }) { v ->
-                                PresetItem(displayVendor(v.name), "Моделей: ${v.printers.size}", false) { vendor = v.name; query = "" }
+                                PresetItem(displayVendor(v.name), tr("Моделей: {0}" ,v.printers.size), false) { vendor = v.name; query = "" }
                             }
                         } else {
-                            item { TextButton(onClick = { vendor = null }) { Text("‹ Все производители") } }
+                            item { TextButton(onClick = { vendor = null }) { Text(tr("‹ Все производители")) } }
                             items(catalog.vendor(vendor!!)?.printers.orEmpty().filter { matches(it.name) }, key = { "printer:${it.name}" }) { p ->
-                                PresetItem(p.name, "Сопло ${p.nozzle} мм", active == null && vendor == selection.vendor && p.name == selection.printer) {
+                                PresetItem(p.name, tr("Сопло {0} мм" ,p.nozzle), active == null && vendor == selection.vendor && p.name == selection.printer) {
                                     viewModel.selectPrinter(vendor!!, p.name); viewModel.back()
                                 }
                             }
                         }
                     }
-                    PresetType.PROCESS -> items(catalog.printer(selection.vendor, selection.printer)?.let { catalog.processesFor(selection.vendor, it) }.orEmpty().filter(::matches), key = { "process:$it" }) { p ->
-                        PresetItem(p, "Для ${selection.printer}", active == null && p == selection.process) { viewModel.selectProcess(p); viewModel.back() }
+                    PresetType.PROCESS -> items(catalog.printer(selection.vendor, selection.printer)?.let { catalog.processesFor(selection.vendor, it) }.orEmpty().filter(::matches), key = { "process:${it}" }) { p ->
+                        PresetItem(p, tr("Для {0}" ,selection.printer), active == null && p == selection.process) { viewModel.selectProcess(p); viewModel.back() }
                     }
                     PresetType.FILAMENT -> items(catalog.printer(selection.vendor, selection.printer)?.let { catalog.filamentsFor(selection.vendor, it) }.orEmpty().filter { matches(it.name) }, key = { "filament:${it.vendor}:${it.name}" }) { p ->
                         PresetItem(p.name, displayVendor(p.vendor), active == null && p == selection.filament) { viewModel.selectFilament(p); viewModel.back() }
@@ -97,18 +98,18 @@ fun PresetsScreen(state: UiState, viewModel: MainViewModel) {
             }
         }
     }
-    if (save) AlertDialog(onDismissRequest = { save = false }, title = { Text("Сохранить в Мои профили") }, text = {
-        OutlinedTextField(name, { name = it }, label = { Text("Имя профиля") }, singleLine = true)
-    }, confirmButton = { TextButton(onClick = { viewModel.saveUserPreset(type, name); save = false }, enabled = name.isNotBlank()) { Text("Сохранить") } }, dismissButton = { TextButton(onClick = { save = false }) { Text("Отмена") } })
+    if (save) AlertDialog(onDismissRequest = { save = false }, title = { Text(tr("Сохранить в Мои профили")) }, text = {
+        OutlinedTextField(name, { name = it }, label = { Text(tr("Имя профиля")) }, singleLine = true)
+    }, confirmButton = { TextButton(onClick = { viewModel.saveUserPreset(type, name); save = false }, enabled = name.isNotBlank()) { Text(tr("Сохранить")) } }, dismissButton = { TextButton(onClick = { save = false }) { Text(tr("Отмена")) } })
 }
 
-fun PresetType.title() = when(this) { PresetType.MACHINE -> "Принтер"; PresetType.PROCESS -> "Процесс"; PresetType.FILAMENT -> "Пластик" }
-private fun displayVendor(vendor: String) = when(vendor) { Catalog.LIBRARY_VENDOR -> "Универсальные"; "Custom" -> "Свой принтер / Klipper"; else -> vendor }
+fun PresetType.title() = when(this) { PresetType.MACHINE -> tr("Принтер"); PresetType.PROCESS -> tr("Процесс"); PresetType.FILAMENT -> tr("Пластик") }
+private fun displayVendor(vendor: String) = when(vendor) { Catalog.LIBRARY_VENDOR -> tr("Универсальные"); "Custom" -> tr("Свой принтер / Klipper"); else -> vendor }
 @Composable private fun SectionLabel(text: String) { Surface(color = MaterialTheme.colorScheme.surfaceVariant) { Text(text, Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp), style = MaterialTheme.typography.labelLarge) } }
 @Composable private fun PresetItem(name: String, detail: String, selected: Boolean, color: String? = null, onClick: () -> Unit) {
     ListItem(headlineContent = { Text(name) }, supportingContent = { Text(detail) }, modifier = Modifier.clickable(onClick = onClick),
         leadingContent = color?.let { { Box(Modifier.size(24.dp).clip(CircleShape).background(parseColor(it))) } },
-        trailingContent = if (selected) { { Icon(Icons.Default.Check, "Выбран", tint = MaterialTheme.colorScheme.primary) } } else null)
+        trailingContent = if (selected) { { Icon(Icons.Default.Check, tr("Выбран"), tint = MaterialTheme.colorScheme.primary) } } else null)
     HorizontalDivider()
 }
 fun parseColor(hex: String?): Color = Color(0xFF000000 or (hex?.removePrefix("#")?.take(6)?.toLongOrNull(16) ?: 0xE6B83C))

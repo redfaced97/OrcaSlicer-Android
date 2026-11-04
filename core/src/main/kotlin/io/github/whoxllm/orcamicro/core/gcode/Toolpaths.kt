@@ -1,5 +1,7 @@
 package io.github.whoxllm.orcamicro.core.gcode
 
+import io.github.whoxllm.orcamicro.core.i18n.tr
+
 /**
  * What an extrusion is for, as OrcaSlicer labels it in `;TYPE:` comments. Colours follow
  * OrcaSlicer's preview so the layer view looks familiar.
@@ -26,13 +28,13 @@ enum class Feature(val label: String, val rgb: Int) {
     OTHER("Other", 0xE6B3B3);
 
     val labelRu: String get() = when(this) {
-        OUTER_WALL -> "Внешняя стенка"; INNER_WALL -> "Внутренняя стенка"; OVERHANG_WALL -> "Нависание"
-        SPARSE_INFILL -> "Разреженное заполнение"; SOLID_INFILL -> "Сплошное заполнение"
-        TOP_SURFACE -> "Верхняя поверхность"; BOTTOM_SURFACE -> "Нижняя поверхность"
-        BRIDGE -> "Мост"; INTERNAL_BRIDGE -> "Внутренний мост"; GAP_FILL -> "Заполнение зазоров"
-        IRONING -> "Разглаживание"; SKIRT -> "Юбка"; BRIM -> "Кайма"; SUPPORT -> "Поддержки"
-        SUPPORT_INTERFACE -> "Контактный слой поддержек"; SUPPORT_TRANSITION -> "Переход поддержек"
-        PRIME_TOWER -> "Башня очистки"; CUSTOM -> "Пользовательский"; OTHER -> "Прочее"
+        OUTER_WALL -> tr("Внешняя стенка"); INNER_WALL -> tr("Внутренняя стенка"); OVERHANG_WALL -> tr("Нависание")
+        SPARSE_INFILL -> tr("Разреженное заполнение"); SOLID_INFILL -> tr("Сплошное заполнение")
+        TOP_SURFACE -> tr("Верхняя поверхность"); BOTTOM_SURFACE -> tr("Нижняя поверхность")
+        BRIDGE -> tr("Мост"); INTERNAL_BRIDGE -> tr("Внутренний мост"); GAP_FILL -> tr("Заполнение зазоров")
+        IRONING -> tr("Разглаживание"); SKIRT -> tr("Юбка"); BRIM -> tr("Кайма"); SUPPORT -> tr("Поддержки")
+        SUPPORT_INTERFACE -> tr("Контактный слой поддержек"); SUPPORT_TRANSITION -> tr("Переход поддержек")
+        PRIME_TOWER -> tr("Башня очистки"); CUSTOM -> tr("Пользовательский"); OTHER -> tr("Прочее")
     }
 
     companion object {

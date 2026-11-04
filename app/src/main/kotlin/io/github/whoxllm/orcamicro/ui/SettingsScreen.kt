@@ -1,5 +1,6 @@
 package io.github.whoxllm.orcamicro.ui
 
+import io.github.whoxllm.orcamicro.core.i18n.tr
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -29,7 +30,7 @@ import io.github.whoxllm.orcamicro.core.settings.OrcaOptions
 import io.github.whoxllm.orcamicro.core.settings.PrintSettings
 import kotlinx.serialization.json.*
 
-private val settingTabs = listOf(PresetType.PROCESS to "Печать", PresetType.FILAMENT to "Пластик", PresetType.MACHINE to "Принтер")
+private val settingTabs get() = listOf(PresetType.PROCESS to tr("Печать"), PresetType.FILAMENT to tr("Пластик"), PresetType.MACHINE to tr("Принтер"))
 
 @Composable
 fun SettingsScreen(state: UiState, viewModel: MainViewModel) {
@@ -57,11 +58,11 @@ fun SettingsScreen(state: UiState, viewModel: MainViewModel) {
     }
     val options = remember(type, preset.keys) { OrcaOptions.forType(type, preset) }
     val quickKeys = remember(type) { PrintSettings.forType(type).map { it.key }.toSet() }
-    val categories = remember(options) { options.map { it.categoryRu }.distinct().sortedBy { listOf("Качество", "Прочность", "Скорость", "Поддержки", "Мультиматериалы", "Прочее").indexOf(it).let { n -> if (n < 0) 99 else n } } }
+    val categories = remember(options) { options.map { it.displayCategory }.distinct().sortedBy { listOf(tr("Качество"), tr("Прочность"), tr("Скорость"), tr("Поддержки"), tr("Мультиматериалы"), tr("Прочее")).indexOf(it).let { n -> if (n < 0) 99 else n } } }
     val shown = remember(options, query, allOptions, favoritesOnly, changedOnly, category, state.favorites, keysChanged) {
         options.filter { option ->
             (allOptions || query.isNotBlank() || favoritesOnly || changedOnly || option.key in quickKeys) &&
-                option.matches(query) && (category == null || category == option.categoryRu) &&
+                option.matches(query) && (category == null || category == option.displayCategory) &&
                 (!favoritesOnly || "${type.name}/${option.key}" in state.favorites) &&
                 (!changedOnly || option.key in keysChanged)
         }
@@ -79,17 +80,17 @@ fun SettingsScreen(state: UiState, viewModel: MainViewModel) {
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
-                title = { Text("Параметры") },
+                title = { Text(tr("Параметры")) },
                 windowInsets = WindowInsets(0, 0, 0, 0),
-                navigationIcon = { IconButton(onClick = viewModel::back) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "На стол") } },
-                actions = { IconButton(onClick = { confirmReset = true }) { OrcaIcon(OrcaAction.Refresh, "Сбросить вкладку") } },
+                navigationIcon = { IconButton(onClick = viewModel::back) { Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("На стол")) } },
+                actions = { IconButton(onClick = { confirmReset = true }) { OrcaIcon(OrcaAction.Refresh, tr("Сбросить вкладку")) } },
             )
         },
         bottomBar = {
             Surface(tonalElevation = 3.dp) {
                 Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedButton(onClick = { transferType = type; import.launch(arrayOf("application/json", "application/octet-stream", "text/plain")) }, modifier = Modifier.weight(1f)) { Text("Импорт", maxLines = 1) }
-                    Button(onClick = { transferType = type; export.launch("OrcaSlicer-${type.orcaName}.json") }, modifier = Modifier.weight(1f)) { Text("Экспорт", maxLines = 1) }
+                    OutlinedButton(onClick = { transferType = type; import.launch(arrayOf("application/json", "application/octet-stream", "text/plain")) }, modifier = Modifier.weight(1f)) { Text(tr("Импорт"), maxLines = 1) }
+                    Button(onClick = { transferType = type; export.launch("OrcaSlicer-${type.orcaName}.json") }, modifier = Modifier.weight(1f)) { Text(tr("Экспорт"), maxLines = 1) }
                 }
             }
         },
@@ -99,34 +100,35 @@ fun SettingsScreen(state: UiState, viewModel: MainViewModel) {
             TabRow(selectedTabIndex = tab) {
                 settingTabs.forEachIndexed { index, (_, title) -> Tab(selected = tab == index, onClick = { tab = index }, text = { Text(title) }) }
             }
+            LanguageSettingsCard()
             OutlinedTextField(
                 value = query, onValueChange = { query = it; category = null },
-                placeholder = { Text("Найти параметр", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                placeholder = { Text(tr("Найти параметр"), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 leadingIcon = { Icon(Icons.Default.Search, null) },
-                trailingIcon = if (query.isNotEmpty()) { { IconButton(onClick = { query = "" }) { Icon(Icons.Default.Close, "Очистить поиск") } } } else null,
+                trailingIcon = if (query.isNotEmpty()) { { IconButton(onClick = { query = "" }) { Icon(Icons.Default.Close, tr("Очистить поиск")) } } } else null,
                 singleLine = true, shape = MaterialTheme.shapes.extraLarge,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
             )
             LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                item { FilterChip(selected = !allOptions, onClick = { allOptions = false; category = null }, label = { Text("Основные") }) }
-                item { FilterChip(selected = allOptions, onClick = { allOptions = true }, label = { Text("Все · ${options.size}") }) }
-                item { FilterChip(selected = favoritesOnly, onClick = { favoritesOnly = !favoritesOnly }, label = { Text("Избранное") }) }
-                item { FilterChip(selected = changedOnly, onClick = { changedOnly = !changedOnly }, label = { Text("Изменены · ${keysChanged.size}") }) }
+                item { FilterChip(selected = !allOptions, onClick = { allOptions = false; category = null }, label = { Text(tr("Основные")) }) }
+                item { FilterChip(selected = allOptions, onClick = { allOptions = true }, label = { Text(tr("Все · {0}" ,options.size)) }) }
+                item { FilterChip(selected = favoritesOnly, onClick = { favoritesOnly = !favoritesOnly }, label = { Text(tr("Избранное")) }) }
+                item { FilterChip(selected = changedOnly, onClick = { changedOnly = !changedOnly }, label = { Text(tr("Изменены · {0}" ,keysChanged.size)) }) }
             }
             if (allOptions) {
                 LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    item { FilterChip(selected = category == null, onClick = { category = null }, label = { Text("Все разделы") }) }
+                    item { FilterChip(selected = category == null, onClick = { category = null }, label = { Text(tr("Все разделы")) }) }
                     items(categories) { name -> FilterChip(selected = category == name, onClick = { category = name }, label = { Text(name) }) }
                 }
             }
             Text(
-                "${preset.string("name").orEmpty()} · ${shown.size} параметров",
+                tr("{0} · {1} параметров" ,preset.string("name").orEmpty(),shown.size),
                 style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
             )
             if (shown.isEmpty()) {
                 Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
-                    Text("Параметры не найдены. Проверьте поиск и фильтры.", style = MaterialTheme.typography.bodyMedium)
+                    Text(tr("Параметры не найдены. Проверьте поиск и фильтры."), style = MaterialTheme.typography.bodyMedium)
                 }
             } else {
                 LazyColumn(Modifier.fillMaxSize()) {
@@ -136,10 +138,10 @@ fun SettingsScreen(state: UiState, viewModel: MainViewModel) {
                             Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable { editing = option }.padding(horizontal = 16.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
-                            Text(option.labelRu, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
-                            val summary = if (value == null) "По умолчанию" else OrcaOptions.display(option, value).ifBlank { "Пусто" }
+                            Text(option.displayLabel, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            val summary = if (value == null) tr("По умолчанию") else OrcaOptions.display(option, value).ifBlank { tr("Пусто") }
                             Text(summary, style = MaterialTheme.typography.bodyMedium, color = if (option.key in keysChanged) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.widthIn(max = 112.dp), maxLines = 2, overflow = TextOverflow.Ellipsis)
-                            if ("${type.name}/${option.key}" in state.favorites) Icon(Icons.Default.Star, "Избранное", Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                            if ("${type.name}/${option.key}" in state.favorites) Icon(Icons.Default.Star, tr("Избранное"), Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
                         }
                         HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
                     }
@@ -158,10 +160,10 @@ fun SettingsScreen(state: UiState, viewModel: MainViewModel) {
         )
     }
     if (confirmReset) AlertDialog(
-        onDismissRequest = { confirmReset = false }, title = { Text("Сбросить «${settingTabs[tab].second}»?") },
-        text = { Text("Изменения и импортированный профиль этой вкладки будут удалены. Вернутся значения выбранного системного профиля.") },
-        confirmButton = { TextButton(onClick = { viewModel.resetEdits(type); confirmReset = false }) { Text("Сбросить") } },
-        dismissButton = { TextButton(onClick = { confirmReset = false }) { Text("Отмена") } },
+        onDismissRequest = { confirmReset = false }, title = { Text(tr("Сбросить «{0}»?" ,settingTabs[tab].second)) },
+        text = { Text(tr("Изменения и импортированный профиль этой вкладки будут удалены. Вернутся значения выбранного системного профиля.")) },
+        confirmButton = { TextButton(onClick = { viewModel.resetEdits(type); confirmReset = false }) { Text(tr("Сбросить")) } },
+        dismissButton = { TextButton(onClick = { confirmReset = false }) { Text(tr("Отмена")) } },
     )
 }
 
@@ -174,24 +176,24 @@ private fun OptionEditor(option: OrcaOption, value: JsonElement?, baseValue: Jso
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         Column(Modifier.fillMaxWidth().imePadding().navigationBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(option.labelRu, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-                IconButton(onClick = onFavorite) { Icon(if (favorite) Icons.Default.Star else Icons.Default.Add, if (favorite) "Убрать из избранного" else "В избранное") }
+                Text(option.displayLabel, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                IconButton(onClick = onFavorite) { Icon(if (favorite) Icons.Default.Star else Icons.Default.Add, if (favorite) tr("Убрать из избранного") else tr("В избранное")) }
             }
             Text(option.key, style = MaterialTheme.typography.labelSmall, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.primary)
-            if (option.descriptionRu.isNotEmpty()) {
-                TextButton(onClick = { showHelp = !showHelp }, contentPadding = PaddingValues(0.dp)) { Text(if (showHelp) "Скрыть описание" else "Описание параметра") }
-                if (showHelp) Text(option.descriptionRu, style = MaterialTheme.typography.bodySmall)
+            if (option.displayDescription.isNotEmpty()) {
+                TextButton(onClick = { showHelp = !showHelp }, contentPadding = PaddingValues(0.dp)) { Text(if (showHelp) tr("Скрыть описание") else tr("Описание параметра")) }
+                if (showHelp) Text(option.displayDescription, style = MaterialTheme.typography.bodySmall)
             }
-            if (value == null) Text("По умолчанию в движке. Сохраните значение, чтобы изменить его.", style = MaterialTheme.typography.bodySmall)
-            ValueFields(option, draft, value, "Значение") { draft = it; error = null }
+            if (value == null) Text(tr("По умолчанию в движке. Сохраните значение, чтобы изменить его."), style = MaterialTheme.typography.bodySmall)
+            ValueFields(option, draft, value, tr("Значение")) { draft = it; error = null }
             error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
-            if (baseValue != null) Text("В исходном профиле: ${OrcaOptions.display(option, baseValue).take(160)}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (baseValue != null) Text(tr("В исходном профиле: {0}" ,OrcaOptions.display(option, baseValue).take(160)), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                OutlinedButton(onClick = onReset, enabled = changed, modifier = Modifier.weight(1f)) { Text("Вернуть") }
+                OutlinedButton(onClick = onReset, enabled = changed, modifier = Modifier.weight(1f)) { Text(tr("Вернуть")) }
                 Button(onClick = {
                     try { onSave(OrcaOptions.parseForm(option, draft, value)) }
-                    catch (e: Exception) { error = e.message ?: "Проверьте значение" }
-                }, modifier = Modifier.weight(1f)) { Text("Сохранить") }
+                    catch (e: Exception) { error = e.message ?: tr("Проверьте значение") }
+                }, modifier = Modifier.weight(1f)) { Text(tr("Сохранить")) }
             }
         }
     }
@@ -201,20 +203,20 @@ private fun OptionEditor(option: OrcaOption, value: JsonElement?, baseValue: Jso
 private fun ValueFields(option: OrcaOption, value: JsonElement, original: JsonElement?, label: String, onChange: (JsonElement) -> Unit) {
     when (value) {
         is JsonArray -> {
-            if (value.isEmpty()) Text("Значения не заданы", style = MaterialTheme.typography.bodySmall)
+            if (value.isEmpty()) Text(tr("Значения не заданы"), style = MaterialTheme.typography.bodySmall)
             value.forEachIndexed { index, item ->
                 key(index) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
-                            ValueFields(OrcaOptions.scalarOption(option), item, (original as? JsonArray)?.getOrNull(index), if (value.size == 1) label else "$label ${index + 1}") { changed ->
+                            ValueFields(OrcaOptions.scalarOption(option), item, (original as? JsonArray)?.getOrNull(index), if (value.size == 1) label else "${label} ${index + 1}") { changed ->
                                 onChange(JsonArray(value.toMutableList().also { it[index] = changed }))
                             }
                         }
-                        if (value.size > 1) IconButton(onClick = { onChange(JsonArray(value.filterIndexed { i, _ -> i != index })) }) { OrcaIcon(OrcaAction.Remove, "Удалить значение ${index + 1}") }
+                        if (value.size > 1) IconButton(onClick = { onChange(JsonArray(value.filterIndexed { i, _ -> i != index })) }) { OrcaIcon(OrcaAction.Remove, tr("Удалить значение {0}" ,index + 1)) }
                     }
                 }
             }
-            TextButton(onClick = { onChange(JsonArray(value + JsonPrimitive(""))) }) { Text("Добавить значение") }
+            TextButton(onClick = { onChange(JsonArray(value + JsonPrimitive(""))) }) { Text(tr("Добавить значение")) }
         }
         is JsonObject -> value.forEach { (name, item) ->
             ValueFields(OrcaOptions.scalarOption(option), item, (original as? JsonObject)?.get(name), name) { onChange(JsonObject(value + (name to it))) }
@@ -224,7 +226,7 @@ private fun ValueFields(option: OrcaOption, value: JsonElement, original: JsonEl
             val text = if (inherited) "" else value.content
             if (option.valueType == "coBool") {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text(if (inherited) "$label · по умолчанию" else label, Modifier.weight(1f))
+                    Text(if (inherited) tr("{0} · по умолчанию" ,label) else label, Modifier.weight(1f))
                     Switch(checked = text == "1" || text.equals("true", true), onCheckedChange = { onChange(JsonPrimitive(if (it) "1" else "0")) })
                 }
             } else {
@@ -233,7 +235,7 @@ private fun ValueFields(option: OrcaOption, value: JsonElement, original: JsonEl
                 }
                 if(option.valueType != "coEnum" || option.choices.isEmpty()) OutlinedTextField(
                     value = text, onValueChange = { onChange(JsonPrimitive(it)) },
-                    label = { Text(label) }, placeholder = if (inherited) { { Text("По умолчанию") } } else null,
+                    label = { Text(label) }, placeholder = if (inherited) { { Text(tr("По умолчанию")) } } else null,
                     suffix = if (option.unit.isNotBlank()) { { Text(option.unit) } } else null,
                     modifier = Modifier.fillMaxWidth(), minLines = if (option.isGcode) 4 else 1, maxLines = if (option.isGcode) 10 else 4,
                     textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = if (option.isGcode) FontFamily.Monospace else MaterialTheme.typography.bodyMedium.fontFamily),

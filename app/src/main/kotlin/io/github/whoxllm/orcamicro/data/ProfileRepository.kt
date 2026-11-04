@@ -1,5 +1,6 @@
 package io.github.whoxllm.orcamicro.data
 
+import io.github.whoxllm.orcamicro.core.i18n.tr
 import android.content.res.AssetManager
 import io.github.whoxllm.orcamicro.core.profiles.Catalog
 import io.github.whoxllm.orcamicro.core.profiles.PresetResolver
@@ -30,14 +31,14 @@ class ProfileRepository(private val assets: AssetManager) {
             parents.firstOrNull { it.string("name") == parent && it.string("type") == type.orcaName } ?: run {
                 val vendor = (listOf(preferredVendor, Catalog.LIBRARY_VENDOR) + catalog.vendors.map { it.name })
                     .distinct().firstOrNull { catalog.vendor(it)?.presets?.containsKey(parent) == true }
-                    ?: error("Не найден родитель «$parent». Экспортируйте самостоятельный профиль или сначала импортируйте его родителя.")
+                    ?: error(tr("Не найден родитель «{0}». Экспортируйте самостоятельный профиль или сначала импортируйте его родителя." ,parent))
                 resolver.resolve(vendor, parent)
             }
         }
 
     private class AssetProfileSource(private val assets: AssetManager) : ProfileSource {
         override fun read(path: String): String? = try {
-            assets.open("$PROFILES/$path").bufferedReader().use { it.readText() }
+            assets.open("${PROFILES}/${path}").bufferedReader().use { it.readText() }
         } catch (e: FileNotFoundException) {
             null
         }

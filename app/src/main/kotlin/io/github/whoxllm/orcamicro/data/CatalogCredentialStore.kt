@@ -1,5 +1,6 @@
 package io.github.whoxllm.orcamicro.data
 
+import io.github.whoxllm.orcamicro.core.i18n.tr
 import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
@@ -34,7 +35,7 @@ class CatalogCredentialStore(context:Context) {
         value.validate()
         val cipher=Cipher.getInstance("AES/GCM/NoPadding").apply { init(Cipher.ENCRYPT_MODE,key()) }
         val encoded=Base64.encodeToString(cipher.iv,Base64.NO_WRAP)+":"+Base64.encodeToString(cipher.doFinal(Json.encodeToString(CatalogCredentials.serializer(),value).toByteArray()),Base64.NO_WRAP)
-        val tmp=File(file.path+".tmp");tmp.writeText(encoded);check(tmp.renameTo(file)) { "Не удалось сохранить API-ключи" }
+        val tmp=File(file.path+".tmp");tmp.writeText(encoded);check(tmp.renameTo(file)) { tr("Не удалось сохранить API-ключи") }
     }
     companion object { private const val ALIAS="orcaslicer-catalog-api-v1" }
 }

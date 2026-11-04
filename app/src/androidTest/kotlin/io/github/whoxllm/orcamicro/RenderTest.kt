@@ -57,7 +57,7 @@ class RenderTest {
             assertNotEquals(plain,draw(RenderOptions(texture=PlateTexture.CARBON)))
             assertNotEquals(plain,draw(RenderOptions(shadows=true)))
             assertNotEquals(plain,draw(RenderOptions(ssao=true)))
-            assertTrue(r.renderStatus,r.renderStatus.contains("готов"))
+            assertTrue(r.renderStatus,listOf("буфер глубины готов","depth buffer ready").any{r.renderStatus.contains(it)})
             val scaled=draw(RenderOptions(resolution=0.75f))
             assertNotEquals("SSAO must change shading with an identical framebuffer",scaled,draw(RenderOptions(ssao=true,resolution=0.75f)))
             draw(RenderOptions(ssao=true,resolution=0.5f))

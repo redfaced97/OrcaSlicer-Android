@@ -1,5 +1,6 @@
 package io.github.whoxllm.orcamicro.ui
 
+import io.github.whoxllm.orcamicro.core.i18n.tr
 import android.content.Context
 import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -78,13 +79,13 @@ fun PreviewScreen(state: UiState, viewModel: MainViewModel) {
     Scaffold(
         topBar = {
             DesktopHeader(state, viewModel) {
-                if (result != null) IconButton(onClick = { shareGcode(context, result.gcode, gcodeName(result.modelName)) }) { Icon(Icons.Default.Share, "Поделиться G-code") }
+                if (result != null) IconButton(onClick = { shareGcode(context, result.gcode, gcodeName(result.modelName)) }) { Icon(Icons.Default.Share, tr("Поделиться G-code")) }
             }
         },
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
         if (result == null) {
-            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) { Text("Сначала добавьте STL и нарежьте модель") }
+            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) { Text(tr("Сначала добавьте STL и нарежьте модель")) }
             return@Scaffold
         }
         val toolpaths = result.toolpaths
@@ -97,7 +98,7 @@ fun PreviewScreen(state: UiState, viewModel: MainViewModel) {
 
         Column(Modifier.fillMaxSize().padding(padding)) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("Предпросмотр траекторий", Modifier.weight(1f), style = MaterialTheme.typography.labelMedium)
+                Text(tr("Предпросмотр траекторий"), Modifier.weight(1f), style = MaterialTheme.typography.labelMedium)
                 androidx.compose.material3.TextButton(onClick = { showDev = true }) { OrcaIcon(OrcaAction.Settings, null); Text("Dev menu", Modifier.padding(start = 6.dp)) }
             }
             Box(Modifier.weight(1f).fillMaxWidth()) {
@@ -121,9 +122,9 @@ fun PreviewScreen(state: UiState, viewModel: MainViewModel) {
                     if (layerCount > 0) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             val z = toolpaths.layers[layer.coerceIn(0, layerCount - 1)].z
-                            Text("Слой ${layer + 1}/$layerCount · %.2f мм".format(z), modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            IconButton(onClick = { layer = max(0, layer - 1) }) { Icon(Icons.Default.KeyboardArrowDown, "Предыдущий слой") }
-                            IconButton(onClick = { layer = minOf(layerCount - 1, layer + 1) }) { Icon(Icons.Default.KeyboardArrowUp, "Следующий слой") }
+                            Text(tr("Слой {0}/{1} · %.2f мм" ,layer + 1,layerCount).format(z), modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            IconButton(onClick = { layer = max(0, layer - 1) }) { Icon(Icons.Default.KeyboardArrowDown, tr("Предыдущий слой")) }
+                            IconButton(onClick = { layer = minOf(layerCount - 1, layer + 1) }) { Icon(Icons.Default.KeyboardArrowUp, tr("Следующий слой")) }
                         }
                         if (layerCount > 1) {
                             Slider(
@@ -134,8 +135,8 @@ fun PreviewScreen(state: UiState, viewModel: MainViewModel) {
                         }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilterChip(selected = singleLayer, onClick = { singleLayer = !singleLayer }, label = { Text("Один слой") })
-                        FilterChip(selected = travels, onClick = { travels = !travels }, label = { Text("Перемещения") })
+                        FilterChip(selected = singleLayer, onClick = { singleLayer = !singleLayer }, label = { Text(tr("Один слой")) })
+                        FilterChip(selected = travels, onClick = { travels = !travels }, label = { Text(tr("Перемещения")) })
                     }
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         items(toolpaths.features.sortedBy { it.ordinal }) { feature ->
@@ -161,8 +162,8 @@ fun PreviewScreen(state: UiState, viewModel: MainViewModel) {
                     }
                     }
                     Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        androidx.compose.material3.OutlinedButton(onClick = { export.launch(gcodeName(result.modelName)) }, modifier = Modifier.weight(1f), shape = MaterialTheme.shapes.small) { Text("Сохранить") }
-                        Button(onClick = { viewModel.showPrintDialog(true) }, modifier = Modifier.weight(1f), enabled = state.uploadPercent == null, shape = MaterialTheme.shapes.small) { Text("На печать") }
+                        androidx.compose.material3.OutlinedButton(onClick = { export.launch(gcodeName(result.modelName)) }, modifier = Modifier.weight(1f), shape = MaterialTheme.shapes.small) { Text(tr("Сохранить")) }
+                        UploadSplitButton(state,viewModel,Modifier.weight(1f))
                     }
                 }
             }
@@ -175,12 +176,12 @@ fun PreviewScreen(state: UiState, viewModel: MainViewModel) {
 private fun StatsCard(stats: GcodeStats, layers: Int, modifier: Modifier = Modifier) {
     Surface(modifier = modifier, shape = MaterialTheme.shapes.medium, tonalElevation = 3.dp, color = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f)) {
         Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-            stats.printSeconds?.let { Text("Время  ${formatDuration(it)}", style = MaterialTheme.typography.labelLarge) }
-            val length = stats.filamentMillimetres?.let { "%.2f м".format(it / 1000.0) }
-            val weight = stats.filamentGrams?.let { "%.1f г".format(it) }
+            stats.printSeconds?.let { Text(tr("Время  {0}" ,formatDuration(it)), style = MaterialTheme.typography.labelLarge) }
+            val length = stats.filamentMillimetres?.let { tr("%.2f м").format(it / 1000.0) }
+            val weight = stats.filamentGrams?.let { tr("%.1f г").format(it) }
             val filament = listOfNotNull(length, weight).joinToString("  ·  ")
-            if (filament.isNotEmpty()) Text("Пластик  $filament", style = MaterialTheme.typography.labelLarge)
-            Text("$layers слоёв", style = MaterialTheme.typography.labelMedium)
+            if (filament.isNotEmpty()) Text(tr("Пластик  {0}" ,filament), style = MaterialTheme.typography.labelLarge)
+            Text(tr("{0} слоёв" ,layers), style = MaterialTheme.typography.labelMedium)
         }
     }
 }
@@ -189,9 +190,9 @@ private fun formatDuration(seconds: Long): String {
     val h = seconds / 3600
     val m = (seconds % 3600) / 60
     return when {
-        h > 0 -> "${h}ч ${m}мин"
-        m > 0 -> "${m}мин ${seconds % 60}с"
-        else -> "${seconds}с"
+        h > 0 -> tr("{0}ч {1}мин" ,h,m)
+        m > 0 -> tr("{0}мин {1}с" ,m,seconds % 60)
+        else -> tr("{0}с" ,seconds)
     }
 }
 
@@ -205,5 +206,5 @@ private fun shareGcode(context: Context, file: File, name: String) {
         .setType("application/octet-stream")
         .putExtra(Intent.EXTRA_STREAM, uri)
         .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-    context.startActivity(Intent.createChooser(intent, "Поделиться G-code"))
+    context.startActivity(Intent.createChooser(intent, tr("Поделиться G-code")))
 }

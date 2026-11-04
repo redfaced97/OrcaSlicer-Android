@@ -1,5 +1,6 @@
 package io.github.whoxllm.orcamicro.core.network
 
+import io.github.whoxllm.orcamicro.core.i18n.tr
 import kotlinx.serialization.Serializable
 import java.io.File
 import java.net.HttpURLConnection
@@ -18,19 +19,19 @@ enum class ModelSource(val title: String, val home: String) {
         val q=URLEncoder.encode((listOf(query.trim())+tags).filter { it.isNotBlank() }.joinToString(" "),"UTF-8")
         if(query.isBlank()&&tags.size==1) {
             val tag=URLEncoder.encode(tags.first(),"UTF-8").replace("+","%20")
-            return when(this) { THINGIVERSE -> "$home/tag:$tag";PRINTABLES -> "$home/tag/$tag";CULTS -> "$home/en/tags/$tag";MAKERWORLD -> "$home/en/search/models?keyword=$tag" }
+            return when(this) { THINGIVERSE -> "${home}/tag:${tag}";PRINTABLES -> "${home}/tag/${tag}";CULTS -> "${home}/en/tags/${tag}";MAKERWORLD -> "${home}/en/search/models?keyword=${tag}" }
         }
         return when(this) {
-            THINGIVERSE -> "$home/search?q=$q&type=things"
-            PRINTABLES -> "$home/search/models?q=$q"
-            CULTS -> "$home/en/search?q=$q"
-            MAKERWORLD -> "$home/en/search/models?keyword=$q"
+            THINGIVERSE -> "${home}/search?q=${q}&type=things"
+            PRINTABLES -> "${home}/search/models?q=${q}"
+            CULTS -> "${home}/en/search?q=${q}"
+            MAKERWORLD -> "${home}/en/search/models?keyword=${q}"
         }
     }
     companion object {
         fun of(url:String):ModelSource? = runCatching {
             val uri=URI(url); if(uri.scheme!="https" || uri.userInfo!=null) return null
-            entries.firstOrNull { source -> val host=URI(source.home).host.removePrefix("www.");uri.host==host || uri.host=="www.$host" }
+            entries.firstOrNull { source -> val host=URI(source.home).host.removePrefix("www.");uri.host==host || uri.host=="www.${host}" }
         }.getOrNull()
     }
 }
@@ -68,27 +69,27 @@ object ModelDownload {
         try {
             repeat(8) {
                 val uri=URI(current)
-                require(uri.scheme=="https" && !uri.host.isNullOrBlank() && uri.userInfo==null) { "Для модели нужна прямая HTTPS-ссылка" }
+                require(uri.scheme=="https" && !uri.host.isNullOrBlank() && uri.userInfo==null) { tr("Для модели нужна прямая HTTPS-ссылка") }
                 val http=(uri.toURL().openConnection() as HttpURLConnection).apply {
                     connectTimeout=15_000;readTimeout=30_000;instanceFollowRedirects=false
                     setRequestProperty("User-Agent","OrcaSlicer-Android")
                     headers(current).forEach { (key,value) -> require(!value.contains('\r')&&!value.contains('\n'));setRequestProperty(key,value) }
                 }
                 try {
-                    if(http.responseCode in setOf(301,302,303,307,308)) { current=uri.resolve(http.getHeaderField("Location") ?: error("Нет адреса перенаправления")).toString();return@repeat }
-                    require(http.responseCode in 200..299) { "Загрузка: HTTP ${http.responseCode}. Проверьте ключ API и доступ к модели или прикрепите свой файл." }
-                    require(http.contentType?.lowercase()?.contains("text/html")!=true) { "Площадка вернула страницу вместо файла модели. Проверьте доступ или прикрепите свой STL / ZIP / 3MF." }
+                    if(http.responseCode in setOf(301,302,303,307,308)) { current=uri.resolve(http.getHeaderField("Location") ?: error(tr("Нет адреса перенаправления"))).toString();return@repeat }
+                    require(http.responseCode in 200..299) { tr("Загрузка: HTTP {0}. Проверьте ключ API и доступ к модели или прикрепите свой файл." ,http.responseCode) }
+                    require(http.contentType?.lowercase()?.contains("text/html")!=true) { tr("Площадка вернула страницу вместо файла модели. Проверьте доступ или прикрепите свой STL / ZIP / 3MF.") }
                     val total=http.contentLengthLong
-                    require(total<=maxBytes) { "Файл больше 96 МБ" }
+                    require(total<=maxBytes) { tr("Файл больше 96 МБ") }
                     http.inputStream.use { input -> target.outputStream().use { output ->
                         val buffer=ByteArray(64*1024);var received=0L
-                        while(true) { if(Thread.currentThread().isInterrupted) throw java.io.InterruptedIOException();val size=input.read(buffer);if(size<0)break;received+=size;require(received<=maxBytes) { "Файл больше 96 МБ" };output.write(buffer,0,size);progress(received,total) }
-                        require(received>0 && (total<0 || received==total)) { "Загрузка модели оборвалась" }
+                        while(true) { if(Thread.currentThread().isInterrupted) throw java.io.InterruptedIOException();val size=input.read(buffer);if(size<0)break;received+=size;require(received<=maxBytes) { tr("Файл больше 96 МБ") };output.write(buffer,0,size);progress(received,total) }
+                        require(received>0 && (total<0 || received==total)) { tr("Загрузка модели оборвалась") }
                     } }
                     return current
                 } finally { http.disconnect() }
             }
-            error("Слишком много перенаправлений")
+            error(tr("Слишком много перенаправлений"))
         } catch(e:Exception) { target.delete();throw e }
     }
 }

@@ -1,5 +1,6 @@
 package io.github.whoxllm.orcamicro.ui
 
+import io.github.whoxllm.orcamicro.core.i18n.tr
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -50,17 +51,18 @@ fun OrcaMicroApp(viewModel: MainViewModel, onInstallUpdate:()->Unit = {}) {
                         Screen.LIBRARY -> ModelLibraryScreen(state, viewModel)
                         Screen.PRINT_SETUP -> PrintSetupScreen(state, viewModel)
                     }
-                    if(state.archiveChoices.isNotEmpty())AlertDialog(onDismissRequest=viewModel::dismissArchive,title={Text("Выберите деталь из архива")},text={
+                    if(state.archiveChoices.isNotEmpty())AlertDialog(onDismissRequest=viewModel::dismissArchive,title={Text(tr("Выберите деталь из архива"))},text={
                         LazyColumn(Modifier.heightIn(max=420.dp)) { items(state.archiveChoices) { entry->TextButton(onClick={viewModel.chooseArchiveEntry(entry)}){Text(entry)} } }
-                    },confirmButton={TextButton(onClick=viewModel::dismissArchive){Text("Закрыть")}})
+                    },confirmButton={TextButton(onClick=viewModel::dismissArchive){Text(tr("Закрыть"))}})
                     if(state.catalogFileModel!=null)CatalogFilesDialog(state,viewModel)
+                    if(state.projectSettings!=null)ProjectSettingsDialog(state,viewModel)
                     if(state.printDialog)PrintSendDialog(state,viewModel)
                     if(state.stopChallenge!=null)EmergencyStopDialog(state,viewModel)
                     if (state.uploadPercent != null) AlertDialog(
-                        onDismissRequest = {}, title = { Text("Загрузка G-code") },
+                        onDismissRequest = {}, title = { Text(tr("Загрузка G-code")) },
                         text = { Column { LinearProgressIndicator(progress = { state.uploadPercent!! / 100f }, modifier = Modifier.fillMaxWidth()); Text("${state.uploadPercent}%") } }, confirmButton = {},
                     )
-                    state.uploadError?.let { error -> AlertDialog(onDismissRequest = viewModel::dismissUploadError, title = { Text("Не удалось загрузить") }, text = { Text(error) }, confirmButton = { TextButton(onClick = viewModel::dismissUploadError) { Text("OK") } }) }
+                    state.uploadError?.let { error -> AlertDialog(onDismissRequest = viewModel::dismissUploadError, title = { Text(tr("Не удалось загрузить")) }, text = { Text(error) }, confirmButton = { TextButton(onClick = viewModel::dismissUploadError) { Text("OK") } }) }
                     UpdateUi(state,onInstallUpdate)
                     SliceDialogs(state.slice, onCancel = viewModel::cancelSlice, onDismiss = viewModel::dismissSliceError)
                 }
@@ -74,20 +76,20 @@ private fun SliceDialogs(slice: SliceState, onCancel: () -> Unit, onDismiss: () 
     when (slice) {
         is SliceState.Running -> AlertDialog(
             onDismissRequest = {},
-            title = { Text("Нарезка") },
+            title = { Text(tr("Нарезка")) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(slice.text.ifBlank { "Обработка модели" }, style = MaterialTheme.typography.bodyMedium)
+                    Text(slice.text.ifBlank { tr("Обработка модели") }, style = MaterialTheme.typography.bodyMedium)
                     LinearProgressIndicator(progress = { slice.percent / 100f }, modifier = Modifier.fillMaxWidth())
                     Text("${slice.percent}%", style = MaterialTheme.typography.labelMedium)
                 }
             },
             confirmButton = {},
-            dismissButton = { TextButton(onClick = onCancel) { Text("Отмена") } },
+            dismissButton = { TextButton(onClick = onCancel) { Text(tr("Отмена")) } },
         )
         is SliceState.Failed -> AlertDialog(
             onDismissRequest = onDismiss,
-            title = { Text("Ошибка нарезки") },
+            title = { Text(tr("Ошибка нарезки")) },
             text = {
                 Column(
                     modifier = Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()),
@@ -95,7 +97,7 @@ private fun SliceDialogs(slice: SliceState, onCancel: () -> Unit, onDismiss: () 
                 ) {
                     Text(slice.message)
                     slice.details?.let {
-                        Text("Журнал движка", style = MaterialTheme.typography.labelLarge)
+                        Text(tr("Журнал движка"), style = MaterialTheme.typography.labelLarge)
                         SelectionContainer {
                             Text(it, fontFamily = FontFamily.Monospace, fontSize = 11.sp, lineHeight = 14.sp)
                         }

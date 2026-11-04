@@ -1,5 +1,6 @@
 package io.github.whoxllm.orcamicro
 
+import io.github.whoxllm.orcamicro.core.i18n.tr
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -24,28 +25,29 @@ class MainActivity : ComponentActivity() {
     private val installer=registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { }
     private val unknownSources=registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         if(packageManager.canRequestPackageInstalls())installUpdate()
-        else AppUpdater.get(this).reportError("Разрешите установку обновлений из OrcaSlicer и нажмите «Установить обновление» ещё раз.")
+        else AppUpdater.get(this).reportError(tr("Разрешите установку обновлений из OrcaSlicer и нажмите «Установить обновление» ещё раз."))
     }
     private fun installUpdate() {
         val updater=AppUpdater.get(this)
         lifecycleScope.launch {
             try {
                 val s=viewModel.state.value
-                require(s.slice !is SliceState.Running&&s.uploadPercent==null&&!s.libraryBusy) { "Дождитесь завершения нарезки, загрузки или открытия модели" }
+                require(s.slice !is SliceState.Running&&s.uploadPercent==null&&!s.libraryBusy) { tr("Дождитесь завершения нарезки, загрузки или открытия модели") }
                 if(!packageManager.canRequestPackageInstalls()) {
-                    unknownSources.launch(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,Uri.parse("package:$packageName")))
+                    unknownSources.launch(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,Uri.parse("package:${packageName}")))
                 } else {
                     val intent=updater.installerIntent()
                     val now=viewModel.state.value
-                    require(now.slice !is SliceState.Running&&now.uploadPercent==null&&!now.libraryBusy) { "Дождитесь завершения текущей операции" }
+                    require(now.slice !is SliceState.Running&&now.uploadPercent==null&&!now.libraryBusy) { tr("Дождитесь завершения текущей операции") }
                     installer.launch(intent)
                 }
-            }catch(e:Exception){updater.reportError(e.message ?: "Не удалось открыть установщик Android")}
+            }catch(e:Exception){updater.reportError(e.message ?: tr("Не удалось открыть установщик Android"))}
         }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        io.github.whoxllm.orcamicro.core.i18n.AppText.english=resources.configuration.locales[0].language!="ru"
         enableEdgeToEdge()
         io.github.whoxllm.orcamicro.data.ModelCacheService.schedule(this)
         val updates=AppUpdater.get(this)

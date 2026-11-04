@@ -1,5 +1,6 @@
 package io.github.whoxllm.orcamicro.render
 
+import io.github.whoxllm.orcamicro.core.i18n.tr
 import android.opengl.GLES20
 import android.opengl.GLES30
 import io.github.whoxllm.orcamicro.core.settings.RenderOptions
@@ -40,7 +41,7 @@ abstract class SceneRenderer : GLSurfaceView.Renderer {
     private var depthTexture = 0
     private var targetWidth = 0
     private var targetHeight = 0
-    @Volatile var renderStatus = "OpenGL ES 3 · рендер по запросу"
+    @Volatile var renderStatus = tr("OpenGL ES 3 · рендер по запросу")
         private set
     @Volatile protected var options = RenderOptions()
     fun setRenderOptions(next: RenderOptions) {
@@ -150,8 +151,8 @@ abstract class SceneRenderer : GLSurfaceView.Renderer {
         targetWidth=w; targetHeight=h
         if(!ok) {
             GLES20.glDeleteFramebuffers(1,intArrayOf(frameBuffer),0); frameBuffer=0
-            renderStatus="Эффекты недоступны: драйвер не создал буфер глубины"
-        } else renderStatus="OpenGL ES 3 · ${w}×${h} · буфер глубины готов"
+            renderStatus=tr("Эффекты недоступны: драйвер не создал буфер глубины")
+        } else renderStatus=tr("OpenGL ES 3 · {0}×{1} · буфер глубины готов" ,w,h)
         return ok
     }
 

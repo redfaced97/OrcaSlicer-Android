@@ -1,5 +1,6 @@
 package io.github.whoxllm.orcamicro.ui
 
+import io.github.whoxllm.orcamicro.core.i18n.tr
 import android.Manifest
 import android.content.Context
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -48,23 +49,23 @@ fun UpdateCard() {
     val permission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { permissionVersion++ }
     OutlinedCard(Modifier.fillMaxWidth(),shape=MaterialTheme.shapes.small) {
         Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
-            Text("Обновления приложения",style=MaterialTheme.typography.titleMedium)
-            Text("Установлено: ${BuildConfig.VERSION_NAME}")
-            state.release?.let { Text("Доступно: ${it.version}",color=MaterialTheme.colorScheme.primary) }
+            Text(tr("Обновления приложения"),style=MaterialTheme.typography.titleMedium)
+            Text(tr("Установлено: {0}" ,BuildConfig.VERSION_NAME))
+            state.release?.let { Text(tr("Доступно: {0}" ,it.version),color=MaterialTheme.colorScheme.primary) }
             if(state.checking)LinearProgressIndicator(Modifier.fillMaxWidth())
             state.status?.let { Text(it,style=MaterialTheme.typography.bodySmall) }
             state.error?.let { Text(it,color=MaterialTheme.colorScheme.error,style=MaterialTheme.typography.bodySmall) }
             Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick={scope.launch{updater.check(force=true,show=true)}},enabled=!state.checking,shape=MaterialTheme.shapes.small){Text("Проверить")}
-                if(state.release!=null)Button(onClick=updater::show,shape=MaterialTheme.shapes.small){Text(if(state.stage==UpdateStage.READY)"Установить" else "Обновление")}
+                OutlinedButton(onClick={scope.launch{updater.check(force=true,show=true)}},enabled=!state.checking,shape=MaterialTheme.shapes.small){Text(tr("Проверить"))}
+                if(state.release!=null)Button(onClick=updater::show,shape=MaterialTheme.shapes.small){Text(if(state.stage==UpdateStage.READY)tr("Установить") else tr("Обновление"))}
             }
             Row {
-                Text("Проверять новые версии автоматически",Modifier.weight(1f),style=MaterialTheme.typography.bodyMedium)
+                Text(tr("Проверять новые версии автоматически"),Modifier.weight(1f),style=MaterialTheme.typography.bodyMedium)
                 Switch(state.autoCheck,updater::setAutoCheck)
             }
             val canNotify=remember(permissionVersion){updater.notificationsAllowed()}
-            if(!canNotify)TextButton(onClick={updater.notificationAsked();permission.launch(Manifest.permission.POST_NOTIFICATIONS)}){Text("Разрешить уведомления")}
-            Text("Изменения показываются перед загрузкой. APK скачивается в фоне и проверяется; установку подтверждает Android.",style=MaterialTheme.typography.bodySmall)
+            if(!canNotify)TextButton(onClick={updater.notificationAsked();permission.launch(Manifest.permission.POST_NOTIFICATIONS)}){Text(tr("Разрешить уведомления"))}
+            Text(tr("Изменения показываются перед загрузкой. APK скачивается в фоне и проверяется; установку подтверждает Android."),style=MaterialTheme.typography.bodySmall)
         }
     }
 }
@@ -75,21 +76,21 @@ private fun UpdateDialog(state:UpdateState,updater:AppUpdater,onInstall:()->Unit
     val active=state.stage in setOf(UpdateStage.DOWNLOADING,UpdateStage.VERIFYING)
     AlertDialog(onDismissRequest=updater::dismiss,title={Text("OrcaSlicer ${release.version}")},text={
         Column(Modifier.heightIn(max=440.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(10.dp)) {
-            Text("Что нового",style=MaterialTheme.typography.titleMedium)
-            SelectionContainer { Text(release.notes.ifBlank { "Автор не добавил описание изменений." },style=MaterialTheme.typography.bodySmall) }
+            Text(tr("Что нового"),style=MaterialTheme.typography.titleMedium)
+            SelectionContainer { Text(release.notes.ifBlank { tr("Автор не добавил описание изменений.") },style=MaterialTheme.typography.bodySmall) }
             HorizontalDivider()
-            Text("ARM64 · ${release.bytes/(1024*1024)} МБ · текущая ${BuildConfig.VERSION_NAME}",style=MaterialTheme.typography.labelMedium)
+            Text(tr("ARM64 · {0} МБ · текущая {1}" ,release.bytes/(1024*1024),BuildConfig.VERSION_NAME),style=MaterialTheme.typography.labelMedium)
             when(state.stage) {
-                UpdateStage.DOWNLOADING -> { state.progress?.let { LinearProgressIndicator(progress={it/100f},modifier=Modifier.fillMaxWidth());Text("Скачивание: $it%") } ?: LinearProgressIndicator(Modifier.fillMaxWidth());Text("Загрузка продолжится при закрытии приложения или временной потере сети.",style=MaterialTheme.typography.bodySmall) }
-                UpdateStage.VERIFYING -> {LinearProgressIndicator(Modifier.fillMaxWidth());Text("Проверка APK и подписи…")}
-                UpdateStage.READY -> Text("APK проверен. Android попросит подтвердить установку.",color=MaterialTheme.colorScheme.primary)
-                else -> Text("После загрузки откроется системный установщик Android. Профили и настройки сохранятся.",style=MaterialTheme.typography.bodySmall)
+                UpdateStage.DOWNLOADING -> { state.progress?.let { LinearProgressIndicator(progress={it/100f},modifier=Modifier.fillMaxWidth());Text(tr("Скачивание: {0}%" ,it)) } ?: LinearProgressIndicator(Modifier.fillMaxWidth());Text(tr("Загрузка продолжится при закрытии приложения или временной потере сети."),style=MaterialTheme.typography.bodySmall) }
+                UpdateStage.VERIFYING -> {LinearProgressIndicator(Modifier.fillMaxWidth());Text(tr("Проверка APK и подписи…"))}
+                UpdateStage.READY -> Text(tr("APK проверен. Android попросит подтвердить установку."),color=MaterialTheme.colorScheme.primary)
+                else -> Text(tr("После загрузки откроется системный установщик Android. Профили и настройки сохранятся."),style=MaterialTheme.typography.bodySmall)
             }
             state.error?.let { Text(it,color=MaterialTheme.colorScheme.error) }
-            if(active)TextButton(onClick=updater::cancelDownload){Text("Отменить загрузку")}
+            if(active)TextButton(onClick=updater::cancelDownload){Text(tr("Отменить загрузку"))}
         }
     },confirmButton={
-        if(state.stage==UpdateStage.READY)Button(onClick={updater.consumeAutoInstall();onInstall()},shape=MaterialTheme.shapes.small){Text("Установить обновление")}
-        else if(!active)Button(onClick=updater::download,shape=MaterialTheme.shapes.small){Text(if(state.stage==UpdateStage.FAILED)"Скачать заново" else "Скачать апдейт")}
-    },dismissButton={TextButton(onClick=updater::dismiss){Text(if(active)"В фоне" else "Позже")}})
+        if(state.stage==UpdateStage.READY)Button(onClick={updater.consumeAutoInstall();onInstall()},shape=MaterialTheme.shapes.small){Text(tr("Установить обновление"))}
+        else if(!active)Button(onClick=updater::download,shape=MaterialTheme.shapes.small){Text(if(state.stage==UpdateStage.FAILED)tr("Скачать заново") else tr("Скачать апдейт"))}
+    },dismissButton={TextButton(onClick=updater::dismiss){Text(if(active)tr("В фоне") else tr("Позже"))}})
 }

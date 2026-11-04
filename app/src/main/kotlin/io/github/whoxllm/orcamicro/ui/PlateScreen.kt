@@ -1,5 +1,6 @@
 package io.github.whoxllm.orcamicro.ui
 
+import io.github.whoxllm.orcamicro.core.i18n.tr
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -43,7 +44,7 @@ fun PlateScreen(state: UiState, viewModel: MainViewModel) {
     Scaffold(
         topBar = {
             DesktopHeader(state, viewModel) {
-                IconButton(onClick = { if (shortScreen) viewModel.navigate(Screen.PRESETS) else profilesVisible = !profilesVisible }) { OrcaIcon(OrcaAction.Menu, "Показать или скрыть профили") }
+                IconButton(onClick = { if (shortScreen) viewModel.navigate(Screen.PRESETS) else profilesVisible = !profilesVisible }) { OrcaIcon(OrcaAction.Menu, tr("Показать или скрыть профили")) }
             }
         },
         bottomBar = {
@@ -51,11 +52,11 @@ fun PlateScreen(state: UiState, viewModel: MainViewModel) {
                 Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = { viewModel.finishQuickPrintPlacement() }, shape = MaterialTheme.shapes.small, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp), modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
                         OrcaIcon(OrcaAction.Settings, null, Modifier.size(20.dp))
-                        Text(if(state.quickPrintPlacement)"В Quick Print" else "К печати", Modifier.padding(start = 6.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(if(state.quickPrintPlacement)tr("В Quick Print") else tr("К печати"), Modifier.padding(start = 6.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     Button(onClick = viewModel::slice, enabled = state.model?.fits == true && state.slice !is SliceState.Running, shape = MaterialTheme.shapes.small, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp), modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
                         Icon(Icons.Default.PlayArrow, null, Modifier.size(20.dp))
-                        Text("Нарезать", Modifier.padding(start = 4.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(tr("Нарезать"), Modifier.padding(start = 4.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }
@@ -66,10 +67,10 @@ fun PlateScreen(state: UiState, viewModel: MainViewModel) {
             if (profilesVisible && !shortScreen) DesktopProfiles(state, viewModel) { showColor = true }
             Surface(color = MaterialTheme.colorScheme.surfaceVariant) {
                 Row(Modifier.fillMaxWidth()) {
-                    PlateTool(OrcaAction.PlateAdd, "Добавить", true) { openModel.launch(arrayOf("*/*")) }
-                    PlateTool(OrcaAction.Move, if(compact) "Правка" else "Положение", state.model != null) { showPlacement = true }
-                    PlateTool(OrcaAction.Center, "В центр", state.model != null) { viewModel.centerModel() }
-                    PlateTool(OrcaAction.Delete, "Удалить", state.model != null) { viewModel.removeModel() }
+                    PlateTool(OrcaAction.PlateAdd, tr("Добавить"), true) { openModel.launch(arrayOf("*/*")) }
+                    PlateTool(OrcaAction.Move, if(compact) tr("Правка") else tr("Положение"), state.model != null) { showPlacement = true }
+                    PlateTool(OrcaAction.Center, tr("В центр"), state.model != null) { viewModel.centerModel() }
+                    PlateTool(OrcaAction.Delete, tr("Удалить"), state.model != null) { viewModel.removeModel() }
                 }
             }
             Box(Modifier.weight(1f).fillMaxWidth()) {
@@ -89,14 +90,14 @@ fun PlateScreen(state: UiState, viewModel: MainViewModel) {
                     r.setModel(state.model?.placed, state.model?.fits ?: true)
                 }
                 Surface(Modifier.align(Alignment.TopStart).padding(8.dp), shape = MaterialTheme.shapes.extraSmall, color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f)) {
-                    Text("Стол 1 • двойной тап — перенос", Modifier.padding(horizontal = 10.dp, vertical = 6.dp), style = MaterialTheme.typography.labelMedium)
+                    Text(tr("Стол 1 • двойной тап — перенос"), Modifier.padding(horizontal = 10.dp, vertical = 6.dp), style = MaterialTheme.typography.labelMedium)
                 }
                 val model = state.model
                 if (model == null) {
                     Surface(Modifier.align(Alignment.Center).padding(24.dp), shape = MaterialTheme.shapes.medium) {
                         Column(Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Text("Добавьте модель на стол", style = MaterialTheme.typography.titleMedium)
-                            Button(onClick = { openModel.launch(arrayOf("*/*")) }, shape = MaterialTheme.shapes.small) { Text("Открыть STL") }
+                            Text(tr("Добавьте модель на стол"), style = MaterialTheme.typography.titleMedium)
+                            Button(onClick = { openModel.launch(arrayOf("*/*")) }, shape = MaterialTheme.shapes.small) { Text(tr("Открыть STL / 3MF")) }
                         }
                     }
                 } else {
@@ -133,20 +134,20 @@ private fun RowScope.PlateTool(icon: OrcaAction, title: String, enabled: Boolean
 private fun DesktopProfiles(state: UiState, viewModel: MainViewModel, onColor: () -> Unit) {
     val inputs = state.inputs ?: return
     val rows = listOf(
-        Triple(PresetType.MACHINE, "Принтер", inputs.machine.string("name").orEmpty()),
-        Triple(PresetType.FILAMENT, "Пластик", inputs.filament.string("name").orEmpty()),
-        Triple(PresetType.PROCESS, "Процесс", inputs.process.string("name").orEmpty()),
+        Triple(PresetType.MACHINE, tr("Принтер"), inputs.machine.string("name").orEmpty()),
+        Triple(PresetType.FILAMENT, tr("Пластик"), inputs.filament.string("name").orEmpty()),
+        Triple(PresetType.PROCESS, tr("Процесс"), inputs.process.string("name").orEmpty()),
     )
     Surface(color = MaterialTheme.colorScheme.surface) {
         Column {
             for ((type, label, value) in rows) {
                 Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { viewModel.openPreset(type) }.padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(label, Modifier.width(if(LocalConfiguration.current.fontScale > 1.2f) 80.dp else 66.dp), maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    if (type == PresetType.FILAMENT) IconButton(onClick = onColor, modifier = Modifier.semantics { contentDescription = "Выбрать цвет модели" }) {
+                    if (type == PresetType.FILAMENT) IconButton(onClick = onColor, modifier = Modifier.semantics { contentDescription = tr("Выбрать цвет модели") }) {
                         androidx.compose.foundation.Canvas(Modifier.size(24.dp)) { drawCircle(Color(0xFF000000 or state.modelRgb().toLong())) }
                     }
                     Text(value, Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
-                    IconButton(onClick = { viewModel.openSettings(type) }) { OrcaIcon(OrcaAction.Settings, "Параметры: $label") }
+                    IconButton(onClick = { viewModel.openSettings(type) }) { OrcaIcon(OrcaAction.Settings, tr("Параметры: {0}" ,label)) }
                 }
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             }
@@ -159,11 +160,11 @@ private fun ModelInfo(model: ModelState, modifier: Modifier = Modifier) {
     Card(modifier = modifier) {
         Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
             Text(
-                "%.1f × %.1f × %.1f мм".format(model.size.x, model.size.y, model.size.z),
+                tr("%.1f × %.1f × %.1f мм").format(model.size.x, model.size.y, model.size.z),
                 style = MaterialTheme.typography.labelLarge,
             )
             if (!model.fits) {
-                Text("Модель выходит за границы стола", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelMedium)
+                Text(tr("Модель выходит за границы стола"), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelMedium)
             }
         }
     }
@@ -185,22 +186,22 @@ private fun PlacementSheet(
             Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).navigationBarsPadding(),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text("Положение модели", style = MaterialTheme.typography.titleMedium)
+            Text(tr("Положение модели"), style = MaterialTheme.typography.titleMedium)
             Text(
-                "%.1f × %.1f × %.1f мм".format(model.size.x, model.size.y, model.size.z) +
-                    if (model.fits) "" else "  ·  не помещается",
+                tr("%.1f × %.1f × %.1f мм").format(model.size.x, model.size.y, model.size.z) +
+                    if (model.fits) "" else tr("  ·  не помещается"),
                 color = if (model.fits) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error,
             )
             HorizontalDivider()
-            Text("Поворот", style = MaterialTheme.typography.labelLarge)
+            Text(tr("Поворот"), style = MaterialTheme.typography.labelLarge)
             RotateRow("X", p.rotationX) { onChange(p.copy(rotationX = it)) }
             RotateRow("Y", p.rotationY) { onChange(p.copy(rotationY = it)) }
             RotateRow("Z", p.rotationZ) { onChange(p.copy(rotationZ = it)) }
-            LabeledSlider("Поворот на столе", "${p.rotationZ.roundToInt()}°", p.rotationZ, -180f..180f) {
+            LabeledSlider(tr("Поворот на столе"), "${p.rotationZ.roundToInt()}°", p.rotationZ, -180f..180f) {
                 onChange(p.copy(rotationZ = it.roundToInt().toFloat()))
             }
             HorizontalDivider()
-            LabeledSlider("Масштаб", "${p.scalePercent.roundToInt()}%", p.scalePercent, 10f..400f) {
+            LabeledSlider(tr("Масштаб"), "${p.scalePercent.roundToInt()}%", p.scalePercent, 10f..400f) {
                 onChange(p.copy(scalePercent = it.roundToInt().toFloat()))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -210,20 +211,20 @@ private fun PlacementSheet(
             }
             if (bed != null) {
                 HorizontalDivider()
-                LabeledSlider("Положение X", "%.1f мм".format(p.centerX), p.centerX, bed.minX..bed.maxX) {
+                LabeledSlider(tr("Положение X"), tr("%.1f мм").format(p.centerX), p.centerX, bed.minX..bed.maxX) {
                     onChange(p.copy(centerX = it))
                 }
-                LabeledSlider("Положение Y", "%.1f мм".format(p.centerY), p.centerY, bed.minY..bed.maxY) {
+                LabeledSlider(tr("Положение Y"), tr("%.1f мм").format(p.centerY), p.centerY, bed.minY..bed.maxY) {
                     onChange(p.copy(centerY = it))
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 8.dp)) {
-                OutlinedButton(onClick = onCenter) { Text("В центр") }
+                OutlinedButton(onClick = onCenter) { Text(tr("В центр")) }
                 OutlinedButton(onClick = {
                     onChange(Placement(centerX = bed?.centerX ?: p.centerX, centerY = bed?.centerY ?: p.centerY))
-                }) { Text("Сбросить") }
+                }) { Text(tr("Сбросить")) }
                 Spacer(Modifier.weight(1f))
-                Button(onClick = onDismiss) { Text("Готово") }
+                Button(onClick = onDismiss) { Text(tr("Готово")) }
             }
         }
     }
@@ -232,7 +233,7 @@ private fun PlacementSheet(
 @Composable
 private fun RotateRow(axis: String, degrees: Float, onChange: (Float) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("$axis  ${normalize(degrees).roundToInt()}°", modifier = Modifier.width(72.dp))
+        Text("${axis}  ${normalize(degrees).roundToInt()}°", modifier = Modifier.width(72.dp))
         OutlinedButton(onClick = { onChange(normalize(degrees - 90f)) }) { Text("−90°") }
         OutlinedButton(onClick = { onChange(normalize(degrees + 90f)) }) { Text("+90°") }
         TextButton(onClick = { onChange(0f) }) { Text("0°") }

@@ -1,5 +1,6 @@
 package io.github.whoxllm.orcamicro.core.settings
 
+import io.github.whoxllm.orcamicro.core.i18n.tr
 import io.github.whoxllm.orcamicro.core.profiles.PresetType
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
@@ -21,7 +22,10 @@ data class OrcaOption(
     val choices: List<String> = emptyList(),
     val choiceLabelsRu: Map<String, String> = emptyMap(),
 ) {
-    fun choiceLabel(value: String): String = choiceLabelsRu[value] ?: value
+    val displayLabel:String get()=if(io.github.whoxllm.orcamicro.core.i18n.AppText.english)label else labelRu
+    val displayDescription:String get()=if(io.github.whoxllm.orcamicro.core.i18n.AppText.english)description else descriptionRu
+    val displayCategory:String get()=if(io.github.whoxllm.orcamicro.core.i18n.AppText.english)category else categoryRu
+    fun choiceLabel(value:String):String=if(io.github.whoxllm.orcamicro.core.i18n.AppText.english)value.replace('_',' ').replaceFirstChar{it.uppercase()}else choiceLabelsRu[value] ?: value
 
     val isList: Boolean get() = valueType in setOf("coFloats", "coInts", "coStrings", "coPercents", "coBools", "coEnums", "coFloatsOrPercents", "coPoints", "coPointsGroups")
     val isGcode: Boolean get() = "gcode" in key
@@ -42,7 +46,7 @@ object OrcaOptions {
         val known = all.filter { it.type == type }
         val knownKeys = known.map { it.key }.toSet()
         return known + preset.keys.filter { it !in knownKeys && it !in metadata }.map { key ->
-            OrcaOption(key, type, key, categoryRu = "Из профиля", valueType = if (preset[key] is JsonArray) "coStrings" else "coString")
+            OrcaOption(key, type, key, categoryRu = tr("Из профиля"), valueType = if (preset[key] is JsonArray) "coStrings" else "coString")
         }
     }
 
@@ -51,18 +55,18 @@ object OrcaOptions {
     /** Scalars stay Orca strings. Lists use complete JSON so extruder values stay distinct. */
     fun parseValue(option: OrcaOption, text: String): JsonElement {
         if (option.isList) {
-            val array = Json.parseToJsonElement(text) as? JsonArray ?: error("Нужен JSON-массив, например [\"210\", \"215\"]")
-            require(array.all { it is JsonPrimitive || (option.valueType == "coPointsGroups" && it is JsonArray) }) { "Недопустимая структура массива" }
+            val array = Json.parseToJsonElement(text) as? JsonArray ?: error(tr("Нужен JSON-массив, например [\"210\", \"215\"]"))
+            require(array.all { it is JsonPrimitive || (option.valueType == "coPointsGroups" && it is JsonArray) }) { tr("Недопустимая структура массива") }
             return array
         }
         if (option.isNumber) {
             val number = text.trim().replace(',', '.').removeSuffix("%").toDoubleOrNull()
-            require(number != null && number.isFinite()) { "Введите конечное число" }
-            require(option.valueType != "coInt" || number == Math.rint(number)) { "Введите целое число" }
+            require(number != null && number.isFinite()) { tr("Введите конечное число") }
+            require(option.valueType != "coInt" || number == Math.rint(number)) { tr("Введите целое число") }
             return JsonPrimitive(text.trim().replace(',', '.'))
         }
         if (option.valueType == "coBool") {
-            require(text.lowercase() in setOf("0", "1", "true", "false")) { "Выберите включено или выключено" }
+            require(text.lowercase() in setOf("0", "1", "true", "false")) { tr("Выберите включено или выключено") }
             return JsonPrimitive(if (text == "1" || text.equals("true", true)) "1" else "0")
         }
         return JsonPrimitive(text)
@@ -71,14 +75,14 @@ object OrcaOptions {
     /** Human-readable values; JSON syntax belongs to the saved profile, not the interface. */
     fun display(value: JsonElement?): String = when (value) {
         null -> ""
-        is JsonPrimitive -> if (value == JsonNull || value.content == "nil") "По умолчанию" else value.content
-        is JsonArray -> value.joinToString(" · ") { display(it) }.ifEmpty { "Нет значений" }
+        is JsonPrimitive -> if (value == JsonNull || value.content == "nil") tr("По умолчанию") else value.content
+        is JsonArray -> value.joinToString(" · ") { display(it) }.ifEmpty { tr("Нет значений") }
         is JsonObject -> value.entries.joinToString("; ") { "${it.key}: ${display(it.value)}" }
     }
 
     fun display(option: OrcaOption, value: JsonElement?): String = when(value) {
         is JsonArray -> value.joinToString(" · ") { display(option, it) }
-        is JsonPrimitive -> if (scalarOption(option).valueType == "coBool") when(value.content) { "1", "true" -> "Включено"; "0", "false" -> "Выключено"; else -> display(value) } else option.choiceLabel(display(value))
+        is JsonPrimitive -> if (scalarOption(option).valueType == "coBool") when(value.content) { "1", "true" -> tr("Включено"); "0", "false" -> tr("Выключено"); else -> display(value) } else option.choiceLabel(display(value))
         else -> display(value)
     }
 

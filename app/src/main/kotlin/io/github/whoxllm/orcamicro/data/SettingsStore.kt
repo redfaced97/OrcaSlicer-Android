@@ -38,6 +38,7 @@ data class SavedState(
     val libraryModels: List<LibraryModel> = emptyList(),
     val modelCacheDays: Int = 7,
     val activeModelId: String? = null,
+    val temperatureWindowMinutes:Int=10,val telemetryIntervalSeconds:Int=5,
 )
 
 /** Persists [SavedState] as JSON in app storage, and keeps a copy of the current model. */

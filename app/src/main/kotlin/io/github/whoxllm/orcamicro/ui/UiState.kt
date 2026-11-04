@@ -38,6 +38,11 @@ sealed interface SliceState {
     data class Failed(val message: String, val details: String?) : SliceState
 }
 
+data class PrinterStatisticsResult(val printer:SavedPrinter,val statistics:PrinterStatistics?,val error:String?)
+data class PrinterConfigurationPreview(val connection:PrinterConnection,val printerId:String?,val config:DetectedPrinterConfig)
+
+data class ExternalGcode(val file:File,val name:String)
+
 data class StopChallenge(val connection:PrinterConnection,val printerId:String?,val printerName:String)
 
 data class UiState(
@@ -54,6 +59,8 @@ data class UiState(
     val slice: SliceState = SliceState.Idle,
     /** The last finished slice, kept while a new model or settings are being prepared. */
     val lastResult: SliceState.Done? = null,
+    val externalGcode:ExternalGcode?=null,
+    val projectSettings: kotlinx.serialization.json.JsonObject?=null,
     val screen: Screen = Screen.PLATE,
     val message: String? = null,
     val favorites: Set<String> = emptySet(),
@@ -70,6 +77,9 @@ data class UiState(
     val printers: List<SavedPrinter> = emptyList(),
     val activePrinterId: String? = null,
     val telemetry: KlipperSnapshot? = null,
+    val temperatureWindowMinutes:Int=10,val telemetryIntervalSeconds:Int=5,
+    val statisticsScopeId:String?=null,val statisticsLoading:Boolean=false,val printerStatistics:List<PrinterStatisticsResult> = emptyList(),val statisticsAt:Long?=null,
+    val configurationLoading:Boolean=false,val configurationPreview:PrinterConfigurationPreview?=null,
     val temperatureHistory: List<TemperatureSeries> = emptyList(),
     val temperatureHistoryError: String? = null,
     val telemetryAt: Long? = null,

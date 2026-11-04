@@ -1,5 +1,6 @@
 package io.github.whoxllm.orcamicro.ui
 
+import io.github.whoxllm.orcamicro.core.i18n.tr
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.Canvas
 import androidx.compose.ui.graphics.Color
@@ -21,7 +22,7 @@ import io.github.whoxllm.orcamicro.render.PlateRenderer
 import io.github.whoxllm.orcamicro.render.SceneView
 import kotlin.math.max
 
-const val FILAMENT_REMINDER = "(Удостоверьтесь что данный филамент загружен в принтер)"
+val FILAMENT_REMINDER get() = tr("(Удостоверьтесь что данный филамент загружен в принтер)")
 
 data class PickerItem(val id:String,val title:String,val section:String="")
 
@@ -29,11 +30,11 @@ data class PickerItem(val id:String,val title:String,val section:String="")
 fun ChoiceField(label:String,value:String,items:List<PickerItem>,enabled:Boolean=true,onSelect:(String)->Unit) {
     var show by remember { mutableStateOf(false) };var query by remember { mutableStateOf("") }
     OutlinedCard(onClick={ show=true },enabled=enabled,modifier=Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(12.dp)) { Text(label,style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.primary);Text(value.ifBlank { "Выбрать…" },style=MaterialTheme.typography.bodyMedium) }
+        Column(Modifier.padding(12.dp)) { Text(label,style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.primary);Text(value.ifBlank { tr("Выбрать…") },style=MaterialTheme.typography.bodyMedium) }
     }
     if(show) AlertDialog(onDismissRequest={show=false},title={Text(label)},text={
         Column {
-            OutlinedTextField(query,{query=it},label={Text("Поиск")},singleLine=true,modifier=Modifier.fillMaxWidth())
+            OutlinedTextField(query,{query=it},label={Text(tr("Поиск"))},singleLine=true,modifier=Modifier.fillMaxWidth())
             LazyColumn(Modifier.heightIn(max=380.dp)) {
                 items(items.filter { it.title.contains(query,true) },key={it.id}) { item->
                     Column(Modifier.fillMaxWidth().clickable { onSelect(item.id);show=false;query="" }.padding(vertical=12.dp)) {
@@ -42,7 +43,7 @@ fun ChoiceField(label:String,value:String,items:List<PickerItem>,enabled:Boolean
                 }
             }
         }
-    },confirmButton={TextButton(onClick={show=false}){Text("Закрыть")}})
+    },confirmButton={TextButton(onClick={show=false}){Text(tr("Закрыть"))}})
 }
 
 @Composable
@@ -61,9 +62,9 @@ fun PrintSetupScreen(state:UiState,viewModel:MainViewModel) {
     Scaffold(topBar={DesktopHeader(state,viewModel)},snackbarHost={SnackbarHost(snackbar)},bottomBar={
         Surface(tonalElevation=3.dp) {
             Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(12.dp),verticalArrangement=Arrangement.spacedBy(6.dp)) {
-                if(state.lastResult!=null)Text("G-code подготовлен · ${state.lastResult.gcode.length()/1024} КБ",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.primary)
+                if(state.lastResult!=null)Text(tr("G-code подготовлен · {0} КБ" ,state.lastResult.gcode.length()/1024),style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.primary)
                 Button(shape=MaterialTheme.shapes.small,onClick={if(state.lastResult==null)viewModel.quickSlice() else viewModel.showPrintDialog(true)},enabled=ready,modifier=Modifier.fillMaxWidth().heightIn(min=50.dp)) {
-                    Text(if(state.lastResult==null)"Нарезать для печати" else "Отправить на печать")
+                    Text(if(state.lastResult==null)tr("Нарезать для печати") else tr("Отправить на печать"))
                 }
             }
         }
@@ -71,15 +72,15 @@ fun PrintSetupScreen(state:UiState,viewModel:MainViewModel) {
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(12.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment=Alignment.CenterVertically) {
                 Text("Quick Print",style=MaterialTheme.typography.titleLarge,modifier=Modifier.weight(1f))
-                TextButton(onClick={viewModel.navigate(Screen.LIBRARY)}){Text("К моделям")}
+                TextButton(onClick={viewModel.navigate(Screen.LIBRARY)}){Text(tr("К моделям"))}
             }
             Surface(color=MaterialTheme.colorScheme.surfaceVariant,shape=MaterialTheme.shapes.small) {
                 Row(Modifier.fillMaxWidth().padding(12.dp),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
                     ModelThumbnail(state.activeModelCard?.imageUrl,Modifier.size(100.dp))
                     Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)) {
-                        Text(state.activeModelCard?.title ?: state.model?.name ?: "Сначала откройте модель",style=MaterialTheme.typography.titleSmall,maxLines=3,overflow=TextOverflow.Ellipsis)
-                        state.activeModelCard?.let { Text(it.author ?: it.source?.title ?: "Файл с телефона",style=MaterialTheme.typography.bodySmall) }
-                        TextButton(onClick={preview=!preview},contentPadding=PaddingValues(0.dp)) { Text(if(preview)"Скрыть 3D-просмотр" else "3D-просмотр на столе",style=MaterialTheme.typography.labelMedium) }
+                        Text(state.activeModelCard?.title ?: state.model?.name ?: tr("Сначала откройте модель"),style=MaterialTheme.typography.titleSmall,maxLines=3,overflow=TextOverflow.Ellipsis)
+                        state.activeModelCard?.let { Text(it.author ?: it.source?.title ?: tr("Файл с телефона"),style=MaterialTheme.typography.bodySmall) }
+                        TextButton(onClick={preview=!preview},contentPadding=PaddingValues(0.dp)) { Text(if(preview)tr("Скрыть 3D-просмотр") else tr("3D-просмотр на столе"),style=MaterialTheme.typography.labelMedium) }
                     }
                 }
             }
@@ -92,47 +93,47 @@ fun PrintSetupScreen(state:UiState,viewModel:MainViewModel) {
                     r.modelColor=state.modelRgb();r.offsetX=state.model?.offsetX?:0f;r.offsetY=state.model?.offsetY?:0f
                 }
                 Row(verticalAlignment=Alignment.CenterVertically) {
-                    Text("Двойной тап и перенос",style=MaterialTheme.typography.labelSmall,modifier=Modifier.weight(1f))
-                    TextButton(onClick=viewModel::editQuickPrintPlacement){OrcaIcon(OrcaAction.Move,null,Modifier.size(20.dp));Text("Изменить",Modifier.padding(start=4.dp))}
+                    Text(tr("Двойной тап и перенос"),style=MaterialTheme.typography.labelSmall,modifier=Modifier.weight(1f))
+                    TextButton(onClick=viewModel::editQuickPrintPlacement){OrcaIcon(OrcaAction.Move,null,Modifier.size(20.dp));Text(tr("Изменить"),Modifier.padding(start=4.dp))}
                 }
-            } else TextButton(onClick=viewModel::editQuickPrintPlacement){Text("Разместить модель на столе")}
-            if(state.model?.fits==false)Text("Модель не помещается на выбранном принтере. Измените положение или масштаб на столе.",color=MaterialTheme.colorScheme.error)
-            QuickPrintSection("Филамент") {
+            } else TextButton(onClick=viewModel::editQuickPrintPlacement){Text(tr("Разместить модель на столе"))}
+            if(state.model?.fits==false)Text(tr("Модель не помещается на выбранном принтере. Измените положение или масштаб на столе."),color=MaterialTheme.colorScheme.error)
+            QuickPrintSection(tr("Филамент")) {
                 Row(verticalAlignment=Alignment.CenterVertically) {
-                    Text("Мои пресеты филамента",Modifier.weight(1f),style=MaterialTheme.typography.bodyMedium)
+                    Text(tr("Мои пресеты филамента"),Modifier.weight(1f),style=MaterialTheme.typography.bodyMedium)
                     Switch(ownOnly,{ownOnly=it},enabled=ownFilament.isNotEmpty())
                 }
-                if(ownFilament.isEmpty())Text("Импортируйте свой конфиг во вкладке профилей.",style=MaterialTheme.typography.bodySmall)
-                ChoiceField("Пластик",state.inputs?.filament?.string("name").orEmpty(),ownFilament.map { PickerItem(it.id,it.name,"Мои профили") }+
-                    if(ownOnly)emptyList() else stock?.let { catalog.filamentsFor(selection.vendor,it).map { ref->PickerItem("stock:${ref.vendor}:${ref.name}",ref.name,"Штатные · ${ref.vendor}") } }.orEmpty()) { id->
+                if(ownFilament.isEmpty())Text(tr("Импортируйте свой конфиг во вкладке профилей."),style=MaterialTheme.typography.bodySmall)
+                ChoiceField(tr("Пластик"),state.inputs?.filament?.string("name").orEmpty(),ownFilament.map { PickerItem(it.id,it.name,tr("Мои профили")) }+
+                    if(ownOnly)emptyList() else stock?.let { catalog.filamentsFor(selection.vendor,it).map { ref->PickerItem("stock:${ref.vendor}:${ref.name}",ref.name,tr("Штатные · {0}" ,ref.vendor)) } }.orEmpty()) { id->
                     ownFilament.firstOrNull { it.id==id }?.let(viewModel::selectUserPreset) ?: stock?.let { p->catalog.filamentsFor(selection.vendor,p).firstOrNull { "stock:${it.vendor}:${it.name}"==id }?.let(viewModel::selectFilament) }
                 }
                 Row(verticalAlignment=Alignment.CenterVertically) {
                     Canvas(Modifier.size(26.dp)) { drawCircle(Color(0xFF000000 or state.modelRgb().toLong())) }
-                    TextButton(onClick={showColor=true}){Text("Цвет модели")}
+                    TextButton(onClick={showColor=true}){Text(tr("Цвет модели"))}
                 }
                 Text(FILAMENT_REMINDER,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.primary)
             }
-            QuickPrintSection("Принтер") {
-                if(state.printers.isNotEmpty())ChoiceField("Принтер в сети",state.printers.firstOrNull { it.id==state.activePrinterId }?.name.orEmpty(),state.printers.map { PickerItem(it.id,it.name,it.connection.apiUrl) },onSelect=viewModel::selectSavedPrinter)
-                else OutlinedButton(shape=MaterialTheme.shapes.small,onClick={viewModel.navigate(Screen.DEVICE)}){Text("Добавить подключение")}
-                ChoiceField("Профиль принтера",state.inputs?.machine?.string("name").orEmpty(),
-                    ownMachine.map { PickerItem(it.id,it.name,"Мои профили") }+PickerItem("stock",selection.printer,"Штатный профиль")) { id->
+            QuickPrintSection(tr("Принтер")) {
+                if(state.printers.isNotEmpty())ChoiceField(tr("Принтер в сети"),state.printers.firstOrNull { it.id==state.activePrinterId }?.name.orEmpty(),state.printers.map { PickerItem(it.id,it.name,it.connection.apiUrl) },onSelect=viewModel::selectSavedPrinter)
+                else OutlinedButton(shape=MaterialTheme.shapes.small,onClick={viewModel.navigate(Screen.DEVICE)}){Text(tr("Добавить подключение"))}
+                ChoiceField(tr("Профиль принтера"),state.inputs?.machine?.string("name").orEmpty(),
+                    ownMachine.map { PickerItem(it.id,it.name,tr("Мои профили")) }+PickerItem("stock",selection.printer,tr("Штатный профиль"))) { id->
                     if(id=="stock")viewModel.selectPrinter(selection.vendor,selection.printer)else ownMachine.firstOrNull{it.id==id}?.let(viewModel::selectUserPreset)
                 }
-                TextButton(onClick={viewModel.openPreset(PresetType.MACHINE)}){Text("Выбрать другой профиль принтера")}
+                TextButton(onClick={viewModel.openPreset(PresetType.MACHINE)}){Text(tr("Выбрать другой профиль принтера"))}
             }
-            QuickPrintSection("Параметры печати") {
-                ChoiceField("Процесс печати",state.inputs?.process?.string("name").orEmpty(),ownProcess.map { PickerItem(it.id,it.name,"Мои профили") }+
-                    stock?.let { catalog.processesFor(selection.vendor,it).map { name->PickerItem("stock:$name",name,"Штатные") } }.orEmpty()) { id->
+            QuickPrintSection(tr("Параметры печати")) {
+                ChoiceField(tr("Процесс печати"),state.inputs?.process?.string("name").orEmpty(),ownProcess.map { PickerItem(it.id,it.name,tr("Мои профили")) }+
+                    stock?.let { catalog.processesFor(selection.vendor,it).map { name->PickerItem("stock:${name}",name,tr("Штатные")) } }.orEmpty()) { id->
                     ownProcess.firstOrNull { it.id==id }?.let(viewModel::selectUserPreset) ?: viewModel.selectProcess(id.removePrefix("stock:"))
                 }
-                QuickParameter("Высота слоя, мм","layer_height",state,viewModel,.01f..(state.inputs?.machine?.first("nozzle_diameter")?.toFloatOrNull() ?: .4f),onValid={validFields["layer"]=it})
-                QuickParameter("Заполнение, %","sparse_infill_density",state,viewModel,0f..100f,suffix="%",onValid={validFields["infill"]=it})
-                QuickParameter("Количество стенок","wall_loops",state,viewModel,1f..50f,integer=true,onValid={validFields["walls"]=it})
-                OutlinedButton(shape=MaterialTheme.shapes.small,onClick={viewModel.openSettings()}){Text("Все параметры печати")}
+                QuickParameter(tr("Высота слоя, мм"),"layer_height",state,viewModel,.01f..(state.inputs?.machine?.first("nozzle_diameter")?.toFloatOrNull() ?: .4f),onValid={validFields["layer"]=it})
+                QuickParameter(tr("Заполнение, %"),"sparse_infill_density",state,viewModel,0f..100f,suffix="%",onValid={validFields["infill"]=it})
+                QuickParameter(tr("Количество стенок"),"wall_loops",state,viewModel,1f..50f,integer=true,onValid={validFields["walls"]=it})
+                OutlinedButton(shape=MaterialTheme.shapes.small,onClick={viewModel.openSettings()}){Text(tr("Все параметры печати"))}
             }
-            if(state.lastResult!=null)OutlinedButton(shape=MaterialTheme.shapes.small,onClick={viewModel.navigate(Screen.PREVIEW)},modifier=Modifier.fillMaxWidth()){Text("Проверить слои G-code")}
+            if(state.lastResult!=null)OutlinedButton(shape=MaterialTheme.shapes.small,onClick={viewModel.navigate(Screen.PREVIEW)},modifier=Modifier.fillMaxWidth()){Text(tr("Проверить слои G-code"))}
         }
     }
     if(showColor)ModelColorSheet(state,viewModel){showColor=false}
@@ -153,25 +154,43 @@ fun PrintSetupScreen(state:UiState,viewModel:MainViewModel) {
     val value=text.replace(',','.').toFloatOrNull()
     val valid=value!=null&&value.isFinite()&&value in range&&(!integer||value%1f==0f)
     SideEffect { onValid(valid) }
-    OutlinedTextField(text,{text=it;if(it.replace(',','.').toFloatOrNull()?.let { n->n.isFinite()&&n in range&&(!integer||n%1f==0f) }==true)vm.setEdit(PresetType.PROCESS,key,it.replace(',','.')+suffix)},label={Text(label)},isError=!valid,supportingText={if(!valid)Text("Допустимо: ${range.start}–${range.endInclusive}")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Decimal),singleLine=true,modifier=Modifier.fillMaxWidth())
+    OutlinedTextField(text,{text=it;if(it.replace(',','.').toFloatOrNull()?.let { n->n.isFinite()&&n in range&&(!integer||n%1f==0f) }==true)vm.setEdit(PresetType.PROCESS,key,it.replace(',','.')+suffix)},label={Text(label)},isError=!valid,supportingText={if(!valid)Text(tr("Допустимо: {0}–{1}" ,range.start,range.endInclusive))},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Decimal),singleLine=true,modifier=Modifier.fillMaxWidth())
 }
 
 @Composable
 fun PrintSendDialog(state:UiState,vm:MainViewModel) {
-    var confirmed by remember(state.lastResult,state.activePrinterId) { mutableStateOf(false) }
-    AlertDialog(onDismissRequest={vm.showPrintDialog(false)},title={Text("Отправка на печать")},text={
-        Column(Modifier.verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(10.dp)) {
-            Text(state.printers.firstOrNull{it.id==state.activePrinterId}?.name ?: "Подключение не настроено")
-            Text("Принтер: ${state.inputs?.machine?.string("name").orEmpty()}")
-            Text("Пластик: ${state.inputs?.filament?.string("name").orEmpty()}")
-            Text("Процесс: ${state.inputs?.process?.string("name").orEmpty()}")
-            Text(FILAMENT_REMINDER,style=MaterialTheme.typography.bodySmall)
-            Row(verticalAlignment=Alignment.CenterVertically) { Checkbox(confirmed,{confirmed=it});Text("Филамент загружен, стол свободен",style=MaterialTheme.typography.bodyMedium) }
-            state.uploadedFile?.let { Text("На принтере: $it",style=MaterialTheme.typography.labelMedium) }
-            if(state.connection.apiUrl.isBlank())TextButton(onClick={vm.showPrintDialog(false);vm.navigate(Screen.DEVICE)}){Text("Настроить принтер")}
+    var confirmed by remember(state.lastResult,state.externalGcode,state.activePrinterId) { mutableStateOf(false) }
+    val ready=(state.lastResult!=null||state.externalGcode!=null)&&state.connection.apiUrl.isNotBlank()&&state.uploadPercent==null&&!state.deviceBusy
+    androidx.compose.ui.window.Dialog(onDismissRequest={vm.showPrintDialog(false)},properties=androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth=false)) {
+        Surface(Modifier.fillMaxWidth(.94f).widthIn(max=440.dp).heightIn(max=(androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp*.9f).dp),shape=MaterialTheme.shapes.large) {
+            Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
+                Row(verticalAlignment=Alignment.CenterVertically){Text(tr("Отправка на печать"),Modifier.weight(1f),style=MaterialTheme.typography.titleLarge);TextButton(onClick={vm.showPrintDialog(false)}){Text(tr("Закрыть"))}}
+                Column(Modifier.weight(1f,false).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(10.dp)) {
+                    Text(state.externalGcode?.name ?: state.lastResult?.modelName.orEmpty(),style=MaterialTheme.typography.titleMedium,maxLines=2)
+                    if(state.externalGcode==null&&state.model!=null) {
+                        val renderer=remember{PlateRenderer()}
+                        SceneView(renderer,Modifier.fillMaxWidth().height(160.dp)){r->
+                            state.bed?.let{bed->r.camera.frame(bed.centerX,bed.centerY,0f,kotlin.math.max(bed.width,bed.depth)*.6f);r.setBed(bed,state.printableHeight)}
+                            r.setModel(state.model.placed,state.model.fits);r.modelColor=state.modelRgb();r.offsetX=state.model.offsetX;r.offsetY=state.model.offsetY
+                        }
+                    }else if(state.externalGcode!=null)Text(tr("Внешний G-code: параметры заданы в файле; 3D-модель недоступна."),style=MaterialTheme.typography.bodySmall)
+                    Text(state.printers.firstOrNull{it.id==state.activePrinterId}?.name ?: tr("Подключение не настроено"),style=MaterialTheme.typography.titleSmall)
+                    if(state.externalGcode==null){
+                        Text(tr("Сопло: {0} мм",state.inputs?.machine?.first("nozzle_diameter").orEmpty()))
+                        Text(tr("Пластик: {0}",state.inputs?.filament?.string("name").orEmpty()))
+                        Text(tr("Процесс: {0}",state.inputs?.process?.string("name").orEmpty()))
+                    }
+                    Text(FILAMENT_REMINDER,style=MaterialTheme.typography.bodySmall)
+                    Row(verticalAlignment=Alignment.CenterVertically){Checkbox(confirmed,{confirmed=it});Text(tr("Филамент загружен, стол свободен"),style=MaterialTheme.typography.bodyMedium)}
+                    Text(tr("«Загрузить» сохраняет файл на принтере. «Напечатать» загрузит его и начнёт печать."),style=MaterialTheme.typography.bodySmall)
+                    state.uploadedFile?.let{Text(tr("На принтере: {0}",it),style=MaterialTheme.typography.labelMedium)}
+                    if(state.connection.apiUrl.isBlank())TextButton(onClick={vm.showPrintDialog(false);vm.navigate(Screen.DEVICE)}){Text(tr("Настроить принтер"))}
+                }
+                Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick=vm::uploadLastGcode,enabled=ready,modifier=Modifier.weight(1f),shape=MaterialTheme.shapes.small){Text(tr("Загрузить"))}
+                    Button(onClick=vm::uploadAndPrintGcode,enabled=confirmed&&ready,modifier=Modifier.weight(1f),shape=MaterialTheme.shapes.small){Text(tr("Напечатать"))}
+                }
+            }
         }
-    },confirmButton={
-        if(state.uploadedFile!=null)Button(shape=MaterialTheme.shapes.small,contentPadding=PaddingValues(horizontal=8.dp,vertical=8.dp),onClick=vm::startUploadedPrint,enabled=confirmed&&!state.deviceBusy){Text("Начать печать")}
-        else Button(shape=MaterialTheme.shapes.small,contentPadding=PaddingValues(horizontal=8.dp,vertical=8.dp),onClick=vm::uploadLastGcode,enabled=confirmed&&state.lastResult!=null&&state.connection.apiUrl.isNotBlank()&&state.uploadPercent==null){Text("Загрузить G-code")}
-    },dismissButton={TextButton(onClick={vm.showPrintDialog(false)}){Text("Закрыть")}})
+    }
 }

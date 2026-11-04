@@ -28,8 +28,8 @@ android {
         applicationId = "io.github.redfaced97.orcapocket"
         minSdk = 34
         targetSdk = 35
-        versionCode = providers.gradleProperty("appVersionCode").orElse("8").get().toInt()
-        versionName = providers.gradleProperty("appVersionName").orElse("0.6.2").get()
+        versionCode = providers.gradleProperty("appVersionCode").orElse("11").get().toInt()
+        versionName = providers.gradleProperty("appVersionName").orElse("0.6.5").get()
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk {
             // The engine is built for 64-bit ARM phones only.

@@ -1,4 +1,4 @@
-name: Build OrcaPocket
+name: Build OrcaSlicer Android
 on:
   push:
   pull_request:
@@ -41,7 +41,7 @@ jobs:
           --max-workers=2 --stacktrace
       - uses: actions/upload-artifact@v4
         with:
-          name: OrcaPocket-debug
+          name: OrcaSlicer-Android-arm64-debug
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
       - uses: actions/upload-artifact@v4

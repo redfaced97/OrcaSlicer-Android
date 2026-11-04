@@ -30,7 +30,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @Composable
-fun OrcaMicroApp(viewModel: MainViewModel) {
+fun OrcaMicroApp(viewModel: MainViewModel, onInstallUpdate:()->Unit = {}) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     OrcaMicroTheme {
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -55,11 +55,13 @@ fun OrcaMicroApp(viewModel: MainViewModel) {
                     },confirmButton={TextButton(onClick=viewModel::dismissArchive){Text("Закрыть")}})
                     if(state.catalogFileModel!=null)CatalogFilesDialog(state,viewModel)
                     if(state.printDialog)PrintSendDialog(state,viewModel)
+                    if(state.stopChallenge!=null)EmergencyStopDialog(state,viewModel)
                     if (state.uploadPercent != null) AlertDialog(
                         onDismissRequest = {}, title = { Text("Загрузка G-code") },
                         text = { Column { LinearProgressIndicator(progress = { state.uploadPercent!! / 100f }, modifier = Modifier.fillMaxWidth()); Text("${state.uploadPercent}%") } }, confirmButton = {},
                     )
                     state.uploadError?.let { error -> AlertDialog(onDismissRequest = viewModel::dismissUploadError, title = { Text("Не удалось загрузить") }, text = { Text(error) }, confirmButton = { TextButton(onClick = viewModel::dismissUploadError) { Text("OK") } }) }
+                    UpdateUi(state,onInstallUpdate)
                     SliceDialogs(state.slice, onCancel = viewModel::cancelSlice, onDismiss = viewModel::dismissSliceError)
                 }
             }

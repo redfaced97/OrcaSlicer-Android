@@ -81,8 +81,10 @@ adb shell am instrument -w \
 После проверки APK, сохранения исходников в коммите и push основной ветки:
 
 ```sh
-python3 scripts/publish-release.py 0.6.0 \
-  dist/OrcaSlicer-arm64-v0.6.0.apk SOURCE_COMMIT release-notes.md
+python3 scripts/publish-release.py 0.6.2 \
+  dist/OrcaSlicer-arm64-v0.6.2.apk SOURCE_COMMIT release-notes.md
 ```
 
 Скрипт отправляет APK, его SHA-256, описание и точный коммит исходников в `release-artifacts` через SSH. Workflow `releases.yml` проверяет манифест и создаёт релиз с APK, `SHA256SUMS` и тегом на коммит исходников. GitHub добавляет архивы Source code автоматически. Уже опубликованные файлы не перезаписываются. Локальный GitHub API-токен не нужен: публикацию выполняет `GITHUB_TOKEN` Actions с `contents: write`. Ключ подписи не передаётся в GitHub.
+
+Параметры версии при сборке: `-PappVersionName=0.6.2 -PappVersionCode=8`. Для будущего обновления `versionCode` должен увеличиваться; публикуемый тег, версия внутри APK и имя `OrcaSlicer-arm64-vVERSION.apk` должны совпадать. Обновлятор использует SHA-256 `digest` GitHub Release asset и проверяет подпись относительно установленного приложения.

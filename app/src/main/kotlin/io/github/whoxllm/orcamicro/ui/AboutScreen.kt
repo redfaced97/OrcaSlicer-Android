@@ -56,6 +56,7 @@ fun AboutScreen(state: UiState, viewModel: MainViewModel) {
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("OrcaSlicer ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.headlineSmall)
             Text("Неофициальная Android-адаптация. Интерфейс по мотивам настольной OrcaSlicer, для сенсорного экрана телефона.")
+            UpdateCard()
             Text("Команда", style = MaterialTheme.typography.titleMedium)
             Text("Продюсер — redfaced97")
             Text("Программист — Codex GPT-6.1-Sol")

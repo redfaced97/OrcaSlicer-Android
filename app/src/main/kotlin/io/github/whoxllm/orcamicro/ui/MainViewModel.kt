@@ -838,10 +838,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             finally { _state.update { it.copy(deviceBusy=false) } }
         }
     }
-    fun emergencyStop() {
-        val connection=_state.value.connection
-        if(connection.apiUrl.isBlank())return
-        viewModelScope.launch { try { withContext(Dispatchers.IO) { MoonrakerClient(connection).emergencyStop() };showMessage("Аварийная остановка отправлена") }catch(e:Exception) { showMessage("Не удалось отправить STOP: ${e.message}") } }
+    fun requestEmergencyStop() {
+        val s=_state.value
+        if(s.connection.apiUrl.isBlank())return
+        val name=s.printers.firstOrNull { it.id==s.activePrinterId }?.name ?: s.connection.apiUrl
+        _state.update { it.copy(stopChallenge=StopChallenge(s.connection,s.activePrinterId,name)) }
+    }
+    fun dismissEmergencyStop() = _state.update { it.copy(stopChallenge=null) }
+    fun confirmEmergencyStop(text:String):Boolean {
+        val s=_state.value;val challenge=s.stopChallenge ?: return false
+        if(challenge.connection!=s.connection || challenge.printerId!=s.activePrinterId) {
+            dismissEmergencyStop();showMessage("Принтер изменился. Подтвердите STOP заново.");return false
+        }
+        if(!EmergencyStopConfirmation.matches(text))return false
+        dismissEmergencyStop()
+        viewModelScope.launch {
+            try { withContext(Dispatchers.IO) { MoonrakerClient(challenge.connection).emergencyStop() };showMessage("Аварийная остановка отправлена") }
+            catch(e:Exception) { showMessage("Не удалось отправить STOP: ${e.message}") }
+        }
+        return true
     }
 
     fun dismissUploadError() = _state.update { it.copy(uploadError = null) }

@@ -27,7 +27,7 @@ import kotlin.math.roundToInt
     Column(modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(12.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         Row(verticalAlignment=Alignment.CenterVertically) {
             Text(if(snapshot?.ready==true)"Klipper · подключён" else "Klipper · нет данных",Modifier.weight(1f),style=MaterialTheme.typography.titleMedium)
-            Button(shape=MaterialTheme.shapes.small,contentPadding=PaddingValues(horizontal=8.dp,vertical=8.dp),onClick=vm::emergencyStop,enabled=state.connection.apiUrl.isNotBlank(),colors=ButtonDefaults.buttonColors(containerColor=MaterialTheme.colorScheme.error)){Text("STOP")}
+            Button(shape=MaterialTheme.shapes.small,contentPadding=PaddingValues(horizontal=8.dp,vertical=8.dp),onClick=vm::requestEmergencyStop,enabled=state.connection.apiUrl.isNotBlank(),colors=ButtonDefaults.buttonColors(containerColor=MaterialTheme.colorScheme.error)){Text("STOP")}
         }
         state.deviceError?.let { Text(it,color=MaterialTheme.colorScheme.error) }
         if(state.deviceBusy)LinearProgressIndicator(Modifier.fillMaxWidth())

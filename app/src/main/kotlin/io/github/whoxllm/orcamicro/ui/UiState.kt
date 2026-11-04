@@ -38,6 +38,8 @@ sealed interface SliceState {
     data class Failed(val message: String, val details: String?) : SliceState
 }
 
+data class StopChallenge(val connection:PrinterConnection,val printerId:String?,val printerName:String)
+
 data class UiState(
     val ready: Boolean = false,
     val loadError: String? = null,
@@ -73,6 +75,7 @@ data class UiState(
     val telemetryAt: Long? = null,
     val deviceError: String? = null,
     val deviceBusy: Boolean = false,
+    val stopChallenge: StopChallenge? = null,
     val libraryModels: List<LibraryModel> = emptyList(),
     val catalogSource: ModelSource = ModelSource.PRINTABLES,
     val catalogModels: List<LibraryModel> = emptyList(),

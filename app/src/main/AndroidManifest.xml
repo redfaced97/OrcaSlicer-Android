@@ -3,6 +3,8 @@
 
     <!-- Local slicing remains offline; networking is used for Moonraker and its web UI. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
@@ -68,6 +70,11 @@
                 <data android:mimeType="application/vnd.ms-pki.stl" />
             </intent-filter>
         </activity>
+
+        <service android:name=".update.UpdateCheckService" android:permission="android.permission.BIND_JOB_SERVICE" android:exported="true" />
+        <receiver android:name=".update.UpdateDownloadReceiver" android:exported="true">
+            <intent-filter><action android:name="android.intent.action.DOWNLOAD_COMPLETE" /></intent-filter>
+        </receiver>
 
         <!-- The native slicer runs in its own process so a crash there cannot take the app down. -->
         <service

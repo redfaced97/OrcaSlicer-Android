@@ -35,7 +35,9 @@ fun PlateScreen(state: UiState, viewModel: MainViewModel) {
     var showColor by remember { mutableStateOf(false) }
     var showPlacement by rememberSaveable { mutableStateOf(false) }
     var profilesVisible by rememberSaveable { mutableStateOf(true) }
-    val shortScreen = LocalConfiguration.current.screenHeightDp < 500
+    val config = LocalConfiguration.current
+    val compact = config.screenWidthDp < 350 || config.fontScale > 1.2f
+    val shortScreen = config.screenHeightDp < 500
     val snackbar = remember { SnackbarHostState() }
     MessageEffect(state.message, snackbar, viewModel::consumeMessage)
     Scaffold(
@@ -47,13 +49,13 @@ fun PlateScreen(state: UiState, viewModel: MainViewModel) {
         bottomBar = {
             Surface(tonalElevation = 2.dp) {
                 Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { viewModel.openSettings() }, shape = MaterialTheme.shapes.small, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
+                    OutlinedButton(onClick = { viewModel.openSettings() }, shape = MaterialTheme.shapes.small, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp), modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
                         OrcaIcon(OrcaAction.Settings, null, Modifier.size(20.dp))
-                        Text("Параметры", Modifier.padding(start = 6.dp))
+                        Text("Параметры", Modifier.padding(start = 6.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
-                    Button(onClick = viewModel::slice, enabled = state.model?.fits == true && state.slice !is SliceState.Running, shape = MaterialTheme.shapes.small, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
+                    Button(onClick = viewModel::slice, enabled = state.model?.fits == true && state.slice !is SliceState.Running, shape = MaterialTheme.shapes.small, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp), modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
                         Icon(Icons.Default.PlayArrow, null, Modifier.size(20.dp))
-                        Text("Нарезать", Modifier.padding(start = 4.dp))
+                        Text("Нарезать", Modifier.padding(start = 4.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }
@@ -65,7 +67,7 @@ fun PlateScreen(state: UiState, viewModel: MainViewModel) {
             Surface(color = MaterialTheme.colorScheme.surfaceVariant) {
                 Row(Modifier.fillMaxWidth()) {
                     PlateTool(OrcaAction.Add, "Добавить", true) { openModel.launch(arrayOf("*/*")) }
-                    PlateTool(OrcaAction.Move, "Положение", state.model != null) { showPlacement = true }
+                    PlateTool(OrcaAction.Move, if(compact) "Правка" else "Положение", state.model != null) { showPlacement = true }
                     PlateTool(OrcaAction.Center, "В центр", state.model != null) { viewModel.centerModel() }
                     PlateTool(OrcaAction.Delete, "Удалить", state.model != null) { viewModel.removeModel() }
                 }
@@ -87,7 +89,7 @@ fun PlateScreen(state: UiState, viewModel: MainViewModel) {
                     r.setModel(state.model?.placed, state.model?.fits ?: true)
                 }
                 Surface(Modifier.align(Alignment.TopStart).padding(8.dp), shape = MaterialTheme.shapes.extraSmall, color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f)) {
-                    Text("Стол 1 • двойной тап + движение — перенос", Modifier.padding(horizontal = 10.dp, vertical = 6.dp), style = MaterialTheme.typography.labelMedium)
+                    Text("Стол 1 • двойной тап — перенос", Modifier.padding(horizontal = 10.dp, vertical = 6.dp), style = MaterialTheme.typography.labelMedium)
                 }
                 val model = state.model
                 if (model == null) {
@@ -122,7 +124,7 @@ private fun RowScope.PlateTool(icon: OrcaAction, title: String, enabled: Boolean
     TextButton(onClick = onClick, enabled = enabled, shape = MaterialTheme.shapes.extraSmall, modifier = Modifier.weight(1f).heightIn(min = 52.dp), contentPadding = PaddingValues(2.dp)) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             OrcaIcon(icon, title, Modifier.size(22.dp))
-            Text(title, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+            Text(title, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -139,7 +141,7 @@ private fun DesktopProfiles(state: UiState, viewModel: MainViewModel, onColor: (
         Column {
             for ((type, label, value) in rows) {
                 Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { viewModel.openPreset(type) }.padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(label, Modifier.width(66.dp), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(label, Modifier.width(if(LocalConfiguration.current.fontScale > 1.2f) 80.dp else 66.dp), maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     if (type == PresetType.FILAMENT) IconButton(onClick = onColor, modifier = Modifier.semantics { contentDescription = "Выбрать цвет модели" }) {
                         androidx.compose.foundation.Canvas(Modifier.size(24.dp)) { drawCircle(Color(0xFF000000 or state.modelRgb().toLong())) }
                     }

@@ -62,7 +62,7 @@ fun <R : SceneRenderer> SceneView(
 }
 
 @SuppressLint("ViewConstructor", "ClickableViewAccessibility")
-private class SceneSurface(context: Context, private val renderer: SceneRenderer) : GLSurfaceView(context) {
+internal class SceneSurface(context: Context, private val renderer: SceneRenderer) : GLSurfaceView(context) {
     var onModelDrag: ((Float, Float) -> Unit)? = null
     var onModelDragEnd: (() -> Unit)? = null
     private var dragging = false
@@ -95,7 +95,11 @@ private class SceneSurface(context: Context, private val renderer: SceneRenderer
             requestRender()
             return true
         }
-    })
+    }).apply {
+        // Android's single-finger double-tap-and-drag zoom conflicts with model
+        // placement. Keep zoom on the two-finger pinch gesture instead.
+        isQuickScaleEnabled = false
+    }
 
     init {
         setEGLContextClientVersion(3)

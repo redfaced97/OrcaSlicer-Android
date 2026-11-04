@@ -1,121 +1,104 @@
-# OrcaMicro
+# OrcaPocket
 
-A 3D-print slicer for Android that runs [OrcaSlicer](https://github.com/SoftFever/OrcaSlicer)'s
-slicing engine on the phone itself. Open an STL, pick your printer, slice, check the layers and
-save the G-code. No computer, no cloud, no internet permission.
+Generated with AI assistant, sorry(
 
-## What it does
+Android-приложение для локальной нарезки STL, основанное на [OrcaMicro](https://github.com/whoxllm/OrcaMicro) и движке [OrcaSlicer 2.4.2](https://github.com/OrcaSlicer/OrcaSlicer/tree/8500fcdccaa10b5099ac20d252af3a7c560046f1). Android 14+, ARM64. Интерфейс использует Jetpack Compose Material 3, динамические цвета обоев и системную тёмную тему.
 
-- **Any FDM printer**: about 950 printers from OrcaSlicer's profiles, plus generic Marlin,
-  Klipper, RepRapFirmware and Repetier printers you can set up yourself (bed size, nozzle,
-  start and end G-code).
-- **OrcaSlicer's slicing**: walls, infill patterns, top and bottom shells, skirt and brim,
-  retraction, temperatures, spiral vase, and **normal and tree supports**, all computed by
-  OrcaSlicer 2.4.2's own engine.
-- **3D plate**: orbit, pan and zoom, plus move, rotate and scale controls with a check that the
-  model fits the build volume.
-- **Layer preview**: step through the G-code layer by layer, coloured by feature, with print
-  time and filament use.
-- **Export**: save the G-code anywhere through the system file picker (SD card, USB drive,
-  cloud folder) or share it with another app.
+Это первая версия. **Совместимость «90%» не измерена и не заявляется.** Доступность поля профиля в редакторе не означает поддержку соответствующего рабочего процесса на телефоне.
 
-Bambu Lab printers are not listed yet: their G-code relies on parts of the engine this build
-does not drive.
+## Что реализовано
 
-## Get the APK
+- Стол с вращением камеры, масштабированием, перемещением и проверкой размеров модели.
+- Загрузка STL, нарезка на телефоне, просмотр слоёв и экспорт/отправка G-code через системное меню «Поделиться».
+- Крупная кнопка нарезки и нижняя навигация; настройки открываются в прокручиваемой нижней панели. Предпросмотр оставляет место для модели на небольшом экране.
+- **638 параметров** из списков FFF-профилей OrcaSlicer 2.4.2: 354 печати, 125 пластика и 159 принтера. Каталог включает исходные названия, русские переводы и подсказки OrcaSlicer.
+- Режимы «Основные» и «Все», поиск по русским/английским названиям и ключам, разделы, избранное и фильтр изменённых значений.
+- Полное редактирование JSON-массивов: значения разных экструдеров не заменяются одним общим значением. G-code сохраняется с переносами строк.
+- Импорт/экспорт отдельных JSON-профилей принтера, процесса и пластика. Системные родители `inherits` разрешаются автоматически. Неизвестный родитель вызывает ошибку; импортированный родитель того же типа можно загрузить перед дочерним.
+- Новые/неизвестные поля импортированного профиля сохраняются и показываются в редакторе. Движок может не поддерживать ключи из другой версии Orca.
+- Изменения, импортированные профили и избранное сохраняются между запусками. В APK отсутствует разрешение INTERNET.
 
-The newest APK that passed the end-to-end slicing test is on the repository's
-[**latest** release](https://github.com/whoxllm/OrcaMicro/releases/tag/latest):
+## Границы совместимости
 
-1. Download `OrcaMicro.apk` from that release on your phone (or copy it over from a computer).
-2. Open it and allow installs from that app when Android asks.
+| Область | Состояние |
+| --- | --- |
+| Обычная FFF-нарезка одного STL, одного объекта и материала | Реальный движок OrcaSlicer через JNI |
+| Нормальные и древовидные поддержки | Доступны; проверяются Android-тестами |
+| Принтеры, процессы, пластики | 953 принтера из 63 каталогов upstream; Bambu Lab исключены upstream |
+| Пользовательский Ender 3 V3 SE с Klipper | Можно импортировать отдельный JSON-профиль; имеется тест импорта Klipper с полем 220×220 |
+| Параметры профилей Orca 2.4.2 | Каталог доступен; параметры передаются в JSON движка |
+| Несколько материалов / AMS / несколько экструдеров | Данные массива сохраняются; нарезка использует один материал, native bridge фиксирует карту материала |
+| 3MF-проекты, несколько столов и объектов, STEP/OBJ | Не реализованы |
+| Покраска поддержек/шва, модификаторы, переменная высота слоя кистью | Не реализованы |
+| Подключение к принтеру, камера, облако, сетевые поля | Поля профиля сохраняются; сетевого клиента нет |
+| Калибровочные мастера, сторонние плагины и внешние скрипты | Не реализованы |
+| Совпадение G-code с настольной Orca для всех проектов | Не доказано; требуется сравнительный набор моделей и профилей |
 
-Every push also builds an APK in GitHub Actions: the **OrcaMicro-apk** artifact of a
-successful **Build APK** run.
+Ключи, которые native bridge нормализует или переопределяет, описаны в `native/bridge/engine.cpp`. Сохранённое многоматериальное значение не делает такую печать доступной. Унаследованные пресеты применяются как самостоятельная база: параметры предыдущего принтера не примешиваются к импортированному.
 
-Requires Android 9 or newer on a 64-bit ARM phone, which covers practically every phone from
-the last several years.
+## Установка и свои профили
 
-## Using it
+Установите `dist/OrcaPocket-arm64-debug.apk` на телефон Android 14+ ARM64. Это тестовая сборка с debug-подписью; ключ хранится вне репозитория. Не устанавливайте её поверх чужой сборки с другой подписью.
 
-1. **Pick your printer**: on first start choose the brand and model. If yours isn't listed,
-   choose *Generic / custom printer* and set the bed size and start G-code under **Settings →
-   Printer**.
-2. **Open an STL**: use the **+** button, or "Open with" from a file manager.
-3. **Place it**: the pencil button opens rotate, scale and position controls.
-4. **Adjust settings**: layer height, infill, supports, temperatures and more, on top of the
-   selected presets. *Reset* goes back to the preset.
-5. **Slice**, then check the preview and tap **Save G-code**.
+На первом запуске выберите универсальный Klipper либо свою модель, затем откройте «Настройки». На вкладке «Принтер» импортируйте JSON принтера, на вкладке «Печать» — JSON процесса, на вкладке «Пластик» — JSON филамента. Поддерживаются отдельные JSON-файлы; `.orca_printer`, `.orca_filament` и ZIP-пакеты напрямую не импортируются.
 
-## How it is built
+Для переноса локальных профилей без цепочек наследования:
 
-| Part | What it is |
-|---|---|
-| `app/` | The Android app: Kotlin, Jetpack Compose, OpenGL ES 2 views |
-| `core/` | Pure Kotlin: STL files, model placement, OrcaSlicer profiles, settings, G-code parsing. Unit-tested on any JVM |
-| `native/` | Builds OrcaSlicer's `libslic3r` for Android with a small JNI bridge (`liborcamicro_engine.so`) |
+```sh
+python3 scripts/export-desktop-presets.py \
+  --resources /path/to/OrcaSlicer/resources
+```
 
-The slicing engine runs in its own Android process, so a crash in native code can't take the
-app down. The design is in [docs/design.md](docs/design.md) and the build plan in [docs/plan.md](docs/plan.md).
+Скрипт сохраняет самостоятельные JSON в `dist/private-presets/`, исключая сетевые адреса и учётные данные. Эта папка игнорируется Git. Перенесите нужные файлы на телефон отдельно. Скрипт работает с локальными профилями `user/default`; облачные аккаунты автоматически не выбирает.
 
-### Building
+## Сборка
 
-The native engine needs the Android NDK (r27c) and takes a few hours from scratch:
+Нужны JDK 17, Android SDK 35 и build-tools 34/35. Путь к SDK задаётся в игнорируемом `local.properties` либо через `ANDROID_HOME`.
+
+```sh
+ORCAMICRO_ORCA_DIR=/path/to/orca native/scripts/fetch-orca.sh --profiles-only
+# Быстрый вариант: проверяемый опубликованный ARM64-артефакт upstream.
+bash scripts/fetch-prebuilt-engine.sh
+./gradlew :core:test :app:assembleDebug :app:assembleDebugAndroidTest \
+  -PorcaResourcesDir=/path/to/orca/resources --max-workers=2
+```
+
+Опубликованный native-артефакт может истечь. Тогда соберите движок из сохранённых исходников; нужны NDK r27c и несколько часов:
 
 ```sh
 export ANDROID_NDK_ROOT=/path/to/ndk/27.2.12479018
-native/scripts/fetch-orca.sh         # clone OrcaSlicer v2.4.2 and apply the Android patch
-native/scripts/build-deps.sh         # cross-compile Boost, TBB, CGAL, OpenCASCADE, OpenCV, ...
+native/scripts/fetch-orca.sh
+native/scripts/build-deps.sh
 native/scripts/build-engine.sh app/src/main/jniLibs
 ```
 
-Then the app, with OrcaSlicer's profiles:
+Исходники native bridge сохранены без изменений. Движок, использованный в локальном APK, собран upstream на коммите `d92230eafe9a876baafa6ce623451d57ffa8fb5f`; дерево `native/` совпадает с исходной базой этого форка. SHA-256 ZIP: `58988793c158e9e117557958ead7e9571c9cad70ca2be1ceec8afc066cd5e7d3` (проверен по GitHub API).
+
+Перегенерация каталога, включая русские подписи:
 
 ```sh
-ORCAMICRO_ORCA_DIR=/tmp/orca native/scripts/fetch-orca.sh --profiles-only
-./gradlew :app:assembleRelease -PorcaResourcesDir=/tmp/orca/resources
+python3 scripts/generate-options.py /path/to/orca
 ```
 
-Core tests run anywhere, without the Android SDK:
+Чистые JVM-тесты без Android SDK:
 
 ```sh
-./gradlew :core:test -PcoreOnly -PorcaResourcesDir=/tmp/orca/resources
+./gradlew :core:test -PcoreOnly -PorcaResourcesDir=/path/to/orca/resources
 ```
 
-On a Linux desktop the same engine builds as `orcamicro_cli`, which runs one slice request (the
-JSON the app sends, described in `native/bridge/engine.hpp`) and is the quickest way to test
-engine changes. Configure OrcaSlicer's patched tree with `-DORCAMICRO_ENGINE=ON
--DORCAMICRO_DIR=$PWD/native -DSLIC3R_GUI=OFF` against desktop builds of the same libraries and
-build the `orcamicro_cli` target.
+Тесты настоящей нарезки на Android 14 ARM64 или x86_64 Google APIs с трансляцией ARM64:
 
-In CI, `.github/workflows/engine.yml` builds the engine (cached per dependency) whenever
-`native/` changes. `.github/workflows/build.yml` builds the APK and runs an end-to-end slicing
-test on an Android emulator.
+```sh
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+adb shell am instrument -w \
+  io.github.redfaced97.orcapocket.test/androidx.test.runner.AndroidJUnitRunner
+```
 
-### Signing
+Пакет приложения изменён на `io.github.redfaced97.orcapocket`; исходные Kotlin/JNI namespace сохранены для совместимости с движком. Опциональный `-PsourceUrl=https://github.com/OWNER/REPO` включает ссылку на исходники в экране «О приложении» после публикации.
 
-Release APKs are signed with a key that is kept only in the repository's Actions secrets, never
-in the code. CI publishes an APK only when it was signed with that key, so an APK on the
-releases page always comes from this repository. The release notes list the certificate's
-SHA-256 digest.
+## Источники и лицензия
 
-| Secret | Value |
-|---|---|
-| `ORCAMICRO_KEYSTORE_BASE64` | the PKCS12 keystore, base64-encoded |
-| `ORCAMICRO_KEYSTORE_PASSWORD` | its password |
+Форк [whoxllm/OrcaMicro](https://github.com/whoxllm/OrcaMicro), базовый коммит `47935b3514a038c645c7f2fb0591fc89e78ff651`. Автор исходного Android-приложения — whoxllm и участники OrcaMicro. OrcaSlicer — SoftFever и участники проекта, на основе Bambu Studio, PrusaSlicer и Slic3r. Подписи и переводы параметров взяты из закреплённой версии OrcaSlicer.
 
-The key's alias is `orcamicro`. Locally, point `ORCAMICRO_KEYSTORE`, `ORCAMICRO_KEYSTORE_PASSWORD`
-and optionally `ORCAMICRO_KEY_ALIAS` at a keystore; without them the release APK gets the debug
-key, which is fine for testing.
-
-Keep a copy of the keystore somewhere safe: Android only installs an update signed with the
-same key, so losing it means users have to uninstall before installing a new build.
-
-## License
-
-OrcaMicro is free software under the [GNU Affero General Public License v3](LICENSE), the same
-license as OrcaSlicer, which it is built on. If you share the APK, share the source with it.
-This repository is that source.
-
-OrcaSlicer is by SoftFever and contributors, building on Bambu Studio, PrusaSlicer and Slic3r.
-The printer, process and filament profiles come from OrcaSlicer and its contributors.
+Лицензия **AGPL-3.0**, см. [LICENSE](LICENSE). С APK передаётся архив изменённых исходников `OrcaPocket-source.zip`; native-исходники, патчи и скрипты сборки включены. При дальнейшей публикации APK публикуйте и соответствующие исходники. Ключи подписи и личные профили в репозиторий не включаются.

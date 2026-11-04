@@ -54,8 +54,8 @@ fun AboutScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("About OrcaMicro") },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
+                title = { Text("Об OrcaPocket") },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад") } },
             )
         },
     ) { padding ->
@@ -63,14 +63,17 @@ fun AboutScreen(onBack: () -> Unit) {
             Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text("OrcaMicro ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.headlineSmall)
-            Text("Slicing engine: OrcaSlicer ${BuildConfig.ORCA_VERSION}, running entirely on this phone.")
+            Text("OrcaPocket ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.headlineSmall)
+            Text("Движок: OrcaSlicer ${BuildConfig.ORCA_VERSION}. Нарезка выполняется на телефоне.")
+            Text("Generated with AI assistant, sorry(", style = MaterialTheme.typography.labelMedium)
+            Text("Основано на OrcaMicro, автор whoxllm и участники проекта. Интерфейс адаптирован для небольшого экрана; каталог содержит 638 параметров OrcaSlicer.")
+            Text("Поддерживаются STL, один объект и один материал. 3MF-проекты, покраска поддержек, мультиматериальная печать и отправка по сети в этой версии отсутствуют. Показатель совместимости 90% не измерен.")
             Text(
-                "OrcaMicro is free software: you can redistribute it and/or modify it under the terms of the " +
+                "OrcaPocket is free software: you can redistribute it and/or modify it under the terms of the " +
                     "GNU Affero General Public License version 3 or later. It comes with no warranty. " +
-                    "Its complete source code is available from the project repository.",
+                    "Modified source is supplied in the OrcaPocket-source.zip archive alongside this APK.",
             )
-            OutlinedButton(
+            if (BuildConfig.SOURCE_URL.isNotBlank()) OutlinedButton(
                 onClick = {
                     try {
                         context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(BuildConfig.SOURCE_URL)))
@@ -79,8 +82,8 @@ fun AboutScreen(onBack: () -> Unit) {
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
-            ) { Text("Source code") }
-            Text("Built with", style = MaterialTheme.typography.titleMedium)
+            ) { Text("Исходный код") }
+            Text("Использованные проекты", style = MaterialTheme.typography.titleMedium)
             for (line in thirdParty) Text("• $line", style = MaterialTheme.typography.bodySmall)
             Text(
                 "Printer, process and filament profiles come from OrcaSlicer and its contributors.",

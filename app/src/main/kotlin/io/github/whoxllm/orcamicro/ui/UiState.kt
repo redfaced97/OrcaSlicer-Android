@@ -46,4 +46,5 @@ data class UiState(
     val lastResult: SliceState.Done? = null,
     val screen: Screen = Screen.PLATE,
     val message: String? = null,
+    val favorites: Set<String> = emptySet(),
 )

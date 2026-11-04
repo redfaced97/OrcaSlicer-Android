@@ -14,6 +14,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -48,6 +52,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.core.content.FileProvider
 import io.github.whoxllm.orcamicro.core.gcode.Feature
 import io.github.whoxllm.orcamicro.core.gcode.GcodeStats
@@ -71,12 +76,12 @@ fun PreviewScreen(state: UiState, viewModel: MainViewModel) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Preview") },
-                navigationIcon = { IconButton(onClick = viewModel::back) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
+                title = { Text("Просмотр слоёв") },
+                navigationIcon = { IconButton(onClick = viewModel::back) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "На стол") } },
                 actions = {
                     if (result != null) {
                         IconButton(onClick = { shareGcode(context, result.gcode, gcodeName(result.modelName)) }) {
-                            Icon(Icons.Default.Share, "Share G-code")
+                            Icon(Icons.Default.Share, "Поделиться G-code")
                         }
                     }
                 },
@@ -85,7 +90,7 @@ fun PreviewScreen(state: UiState, viewModel: MainViewModel) {
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
         if (result == null) {
-            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) { Text("Nothing sliced yet") }
+            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) { Text("Сначала добавьте STL и нарежьте модель") }
             return@Scaffold
         }
         val toolpaths = result.toolpaths
@@ -112,13 +117,14 @@ fun PreviewScreen(state: UiState, viewModel: MainViewModel) {
                 StatsCard(toolpaths.stats, layerCount, Modifier.align(Alignment.TopStart).padding(12.dp))
             }
             Surface(tonalElevation = 2.dp) {
-                Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).navigationBarsPadding()) {
+                Column(Modifier.fillMaxWidth().heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.48f).dp).navigationBarsPadding()) {
+                    Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp)) {
                     if (layerCount > 0) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             val z = toolpaths.layers[layer.coerceIn(0, layerCount - 1)].z
-                            Text("Layer ${layer + 1} of $layerCount  ·  Z %.2f mm".format(z), modifier = Modifier.weight(1f))
-                            IconButton(onClick = { layer = max(0, layer - 1) }) { Icon(Icons.Default.KeyboardArrowDown, "Layer down") }
-                            IconButton(onClick = { layer = minOf(layerCount - 1, layer + 1) }) { Icon(Icons.Default.KeyboardArrowUp, "Layer up") }
+                            Text("Слой ${layer + 1}/$layerCount · %.2f мм".format(z), modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            IconButton(onClick = { layer = max(0, layer - 1) }) { Icon(Icons.Default.KeyboardArrowDown, "Предыдущий слой") }
+                            IconButton(onClick = { layer = minOf(layerCount - 1, layer + 1) }) { Icon(Icons.Default.KeyboardArrowUp, "Следующий слой") }
                         }
                         if (layerCount > 1) {
                             Slider(
@@ -129,8 +135,8 @@ fun PreviewScreen(state: UiState, viewModel: MainViewModel) {
                         }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilterChip(selected = singleLayer, onClick = { singleLayer = !singleLayer }, label = { Text("This layer only") })
-                        FilterChip(selected = travels, onClick = { travels = !travels }, label = { Text("Travel moves") })
+                        FilterChip(selected = singleLayer, onClick = { singleLayer = !singleLayer }, label = { Text("Один слой") })
+                        FilterChip(selected = travels, onClick = { travels = !travels }, label = { Text("Перемещения") })
                     }
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         items(toolpaths.features.sortedBy { it.ordinal }) { feature ->
@@ -154,12 +160,13 @@ fun PreviewScreen(state: UiState, viewModel: MainViewModel) {
                             )
                         }
                     }
+                    }
                     Button(
                         onClick = { export.launch(gcodeName(result.modelName)) },
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                     ) {
                         Icon(Icons.Default.Done, null)
-                        Text("Save G-code", modifier = Modifier.padding(start = 8.dp))
+                        Text("Сохранить G-code", modifier = Modifier.padding(start = 8.dp))
                     }
                 }
             }
@@ -171,12 +178,12 @@ fun PreviewScreen(state: UiState, viewModel: MainViewModel) {
 private fun StatsCard(stats: GcodeStats, layers: Int, modifier: Modifier = Modifier) {
     Surface(modifier = modifier, shape = MaterialTheme.shapes.medium, tonalElevation = 3.dp, color = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f)) {
         Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-            stats.printSeconds?.let { Text("Print time  ${formatDuration(it)}", style = MaterialTheme.typography.labelLarge) }
+            stats.printSeconds?.let { Text("Время  ${formatDuration(it)}", style = MaterialTheme.typography.labelLarge) }
             val length = stats.filamentMillimetres?.let { "%.2f m".format(it / 1000.0) }
             val weight = stats.filamentGrams?.let { "%.1f g".format(it) }
             val filament = listOfNotNull(length, weight).joinToString("  ·  ")
-            if (filament.isNotEmpty()) Text("Filament  $filament", style = MaterialTheme.typography.labelLarge)
-            Text("$layers layers", style = MaterialTheme.typography.labelMedium)
+            if (filament.isNotEmpty()) Text("Пластик  $filament", style = MaterialTheme.typography.labelLarge)
+            Text("$layers слоёв", style = MaterialTheme.typography.labelMedium)
         }
     }
 }
@@ -201,5 +208,5 @@ private fun shareGcode(context: Context, file: File, name: String) {
         .setType("application/octet-stream")
         .putExtra(Intent.EXTRA_STREAM, uri)
         .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-    context.startActivity(Intent.createChooser(intent, "Share G-code"))
+    context.startActivity(Intent.createChooser(intent, "Поделиться G-code"))
 }

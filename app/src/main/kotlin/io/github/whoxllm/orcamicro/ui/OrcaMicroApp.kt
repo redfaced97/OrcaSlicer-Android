@@ -58,20 +58,20 @@ private fun SliceDialogs(slice: SliceState, onCancel: () -> Unit, onDismiss: () 
     when (slice) {
         is SliceState.Running -> AlertDialog(
             onDismissRequest = {},
-            title = { Text("Slicing") },
+            title = { Text("Нарезка") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(slice.text.ifBlank { "Working" }, style = MaterialTheme.typography.bodyMedium)
+                    Text(slice.text.ifBlank { "Обработка модели" }, style = MaterialTheme.typography.bodyMedium)
                     LinearProgressIndicator(progress = { slice.percent / 100f }, modifier = Modifier.fillMaxWidth())
                     Text("${slice.percent}%", style = MaterialTheme.typography.labelMedium)
                 }
             },
             confirmButton = {},
-            dismissButton = { TextButton(onClick = onCancel) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = onCancel) { Text("Отмена") } },
         )
         is SliceState.Failed -> AlertDialog(
             onDismissRequest = onDismiss,
-            title = { Text("Slicing failed") },
+            title = { Text("Ошибка нарезки") },
             text = {
                 Column(
                     modifier = Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()),
@@ -79,7 +79,7 @@ private fun SliceDialogs(slice: SliceState, onCancel: () -> Unit, onDismiss: () 
                 ) {
                     Text(slice.message)
                     slice.details?.let {
-                        Text("Engine log", style = MaterialTheme.typography.labelLarge)
+                        Text("Журнал движка", style = MaterialTheme.typography.labelLarge)
                         SelectionContainer {
                             Text(it, fontFamily = FontFamily.Monospace, fontSize = 11.sp, lineHeight = 14.sp)
                         }

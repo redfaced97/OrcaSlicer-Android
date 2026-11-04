@@ -13,6 +13,7 @@ import io.github.whoxllm.orcamicro.core.mesh.StlReader
 import io.github.whoxllm.orcamicro.core.profiles.Catalog
 import io.github.whoxllm.orcamicro.core.profiles.PresetRef
 import io.github.whoxllm.orcamicro.core.profiles.PresetType
+import io.github.whoxllm.orcamicro.core.profiles.PresetExchange
 import io.github.whoxllm.orcamicro.core.profiles.first
 import io.github.whoxllm.orcamicro.core.settings.BedShape
 import io.github.whoxllm.orcamicro.core.settings.PresetEdits
@@ -28,6 +29,7 @@ import io.github.whoxllm.orcamicro.engine.EngineResources
 import io.github.whoxllm.orcamicro.engine.SliceJob
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -35,6 +37,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonElement
 import java.io.File
 
 /** Raw (unedited) presets for the current selection. */
@@ -52,8 +55,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private var presets: ResolvedPresets? = null
     private var placementJob: Job? = null
     private var sliceJob: Job? = null
+    private val saves = Channel<SavedState>(Channel.CONFLATED)
 
     init {
+        viewModelScope.launch(Dispatchers.IO) {
+            for (saved in saves) runCatching { store.save(saved) }.onFailure { showMessage("Не удалось сохранить настройки: ${it.message}") }
+        }
         viewModelScope.launch { load() }
     }
 
@@ -73,6 +80,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     catalog = catalog,
                     selection = selection,
                     edits = if (firstRun) PresetEdits() else saved.edits,
+                    favorites = saved.favorites,
                     screen = if (firstRun) Screen.PRESETS else Screen.PLATE,
                 )
             }
@@ -99,7 +107,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun defaultSelection(catalog: Catalog): PresetSelection {
         val vendor = catalog.vendor("Custom")?.takeIf { it.printers.isNotEmpty() } ?: catalog.printerVendors.first()
-        val printer = vendor.printers.firstOrNull { it.name == "MyMarlin 0.4 nozzle" } ?: vendor.printers.first()
+        val printer = vendor.printers.firstOrNull { it.name == "MyKlipper 0.4 nozzle" } ?: vendor.printers.first()
         return selectionFor(catalog, vendor.name, printer.name)
     }
 
@@ -146,12 +154,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun selectProcess(name: String) {
         val selection = _state.value.selection ?: return
-        applySelection(selection.copy(process = name), _state.value.edits.copy(process = emptyMap()))
+        applySelection(selection.copy(process = name), _state.value.edits.copy(process = emptyMap(), rawProcess = emptyMap(), importedProcess = null))
     }
 
     fun selectFilament(ref: PresetRef) {
         val selection = _state.value.selection ?: return
-        applySelection(selection.copy(filament = ref), _state.value.edits.copy(filament = emptyMap()))
+        applySelection(selection.copy(filament = ref), _state.value.edits.copy(filament = emptyMap(), rawFilament = emptyMap(), importedFilament = null))
     }
 
     private fun applySelection(selection: PresetSelection, edits: PresetEdits) {
@@ -174,9 +182,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val edits = state.edits
             state.copy(
                 edits = when (type) {
-                    PresetType.MACHINE -> edits.copy(machine = edits.machine.with())
-                    PresetType.PROCESS -> edits.copy(process = edits.process.with())
-                    PresetType.FILAMENT -> edits.copy(filament = edits.filament.with())
+                    PresetType.MACHINE -> edits.copy(machine = edits.machine.with(), rawMachine = edits.rawMachine - key)
+                    PresetType.PROCESS -> edits.copy(process = edits.process.with(), rawProcess = edits.rawProcess - key)
+                    PresetType.FILAMENT -> edits.copy(filament = edits.filament.with(), rawFilament = edits.rawFilament - key)
                 },
             )
         }
@@ -189,9 +197,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val edits = state.edits
             state.copy(
                 edits = when (type) {
-                    PresetType.MACHINE -> edits.copy(machine = emptyMap())
-                    PresetType.PROCESS -> edits.copy(process = emptyMap())
-                    PresetType.FILAMENT -> edits.copy(filament = emptyMap())
+                    PresetType.MACHINE -> edits.copy(machine = emptyMap(), rawMachine = emptyMap(), importedMachine = null)
+                    PresetType.PROCESS -> edits.copy(process = emptyMap(), rawProcess = emptyMap(), importedProcess = null)
+                    PresetType.FILAMENT -> edits.copy(filament = emptyMap(), rawFilament = emptyMap(), importedFilament = null)
                 },
             )
         }
@@ -201,9 +209,83 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     /** The unedited preset value, to show what a reset would go back to. */
     fun presetFor(type: PresetType): JsonObject? = when (type) {
-        PresetType.MACHINE -> presets?.machine
-        PresetType.PROCESS -> presets?.process
-        PresetType.FILAMENT -> presets?.filament
+        PresetType.MACHINE -> _state.value.edits.importedMachine ?: presets?.machine
+        PresetType.PROCESS -> _state.value.edits.importedProcess ?: presets?.process
+        PresetType.FILAMENT -> _state.value.edits.importedFilament ?: presets?.filament
+    }
+
+    fun setRawEdit(type: PresetType, key: String, value: JsonElement?) {
+        _state.update { state ->
+            val e = state.edits
+            fun Map<String, JsonElement>.edited() = if (value == null) this - key else this + (key to value)
+            state.copy(edits = when (type) {
+                PresetType.MACHINE -> e.copy(rawMachine = e.rawMachine.edited(), machine = e.machine - key)
+                PresetType.PROCESS -> e.copy(rawProcess = e.rawProcess.edited(), process = e.process - key)
+                PresetType.FILAMENT -> e.copy(rawFilament = e.rawFilament.edited(), filament = e.filament - key)
+            })
+        }
+        refreshInputs()
+        persist()
+    }
+
+    fun toggleFavorite(type: PresetType, key: String) {
+        val id = "${type.name}/$key"
+        _state.update { it.copy(favorites = if (id in it.favorites) it.favorites - id else it.favorites + id) }
+        persist()
+    }
+
+    fun importPreset(uri: Uri, type: PresetType) {
+        viewModelScope.launch {
+            try {
+                val imported = withContext(Dispatchers.IO) {
+                    val text = app.contentResolver.openInputStream(uri)?.bufferedReader()?.use { reader ->
+                        val buffer = CharArray(4 * 1024 * 1024 + 1)
+                        var size = 0
+                        while (size < buffer.size) {
+                            val n = reader.read(buffer, size, buffer.size - size)
+                            if (n < 0) break
+                            size += n
+                        }
+                        require(size < buffer.size) { "Профиль превышает 4 МБ" }
+                        String(buffer, 0, size)
+                    } ?: error("Файл недоступен")
+                    profiles.importPreset(text, type, _state.value.selection?.vendor.orEmpty(), listOfNotNull(presetFor(type)))
+                }
+                _state.update { s ->
+                    val e = s.edits
+                    s.copy(edits = when (type) {
+                        PresetType.MACHINE -> e.copy(machine = emptyMap(), rawMachine = emptyMap(), importedMachine = imported)
+                        PresetType.PROCESS -> e.copy(process = emptyMap(), rawProcess = emptyMap(), importedProcess = imported)
+                        PresetType.FILAMENT -> e.copy(filament = emptyMap(), rawFilament = emptyMap(), importedFilament = imported)
+                    }, lastResult = null)
+                }
+                refreshInputs()
+                persist()
+                showMessage("Профиль импортирован")
+            } catch (e: Exception) {
+                showMessage("Не удалось импортировать: ${e.message}")
+            }
+        }
+    }
+
+    fun exportPreset(uri: Uri, type: PresetType) {
+        val inputs = _state.value.inputs ?: return
+        val preset = when (type) {
+            PresetType.MACHINE -> inputs.machine
+            PresetType.PROCESS -> inputs.process
+            PresetType.FILAMENT -> inputs.filament
+        }
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    app.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(PresetExchange.export(preset, type)) }
+                        ?: error("Не удалось открыть место сохранения")
+                }
+                showMessage("JSON-профиль сохранён")
+            } catch (e: Exception) {
+                showMessage("Ошибка сохранения: ${e.message}")
+            }
+        }
     }
 
     // ---- model ---------------------------------------------------------------------------
@@ -397,7 +479,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun persist() {
         val state = _state.value
-        val saved = SavedState(state.selection, state.edits, state.model?.name, state.model?.placement)
-        viewModelScope.launch(Dispatchers.IO) { runCatching { store.save(saved) } }
+        val saved = SavedState(state.selection, state.edits, state.model?.name, state.model?.placement, state.favorites)
+        saves.trySend(saved)
     }
 }

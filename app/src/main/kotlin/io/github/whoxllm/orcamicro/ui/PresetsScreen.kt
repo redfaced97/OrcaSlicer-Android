@@ -38,6 +38,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import io.github.whoxllm.orcamicro.core.profiles.string
 import io.github.whoxllm.orcamicro.core.profiles.Catalog
 import io.github.whoxllm.orcamicro.core.profiles.first
 import io.github.whoxllm.orcamicro.core.settings.formatNumber
@@ -76,7 +77,7 @@ fun PresetsScreen(state: UiState, viewModel: MainViewModel) {
         Picker.PROCESS -> {
             val printer = catalog.printer(selection.vendor, selection.printer)
             SearchList(
-                title = "Process",
+                title = "Профиль печати",
                 items = printer?.let { catalog.processesFor(selection.vendor, it) }.orEmpty().map { name ->
                     PickItem(name, name, null, name == selection.process)
                 },
@@ -88,7 +89,7 @@ fun PresetsScreen(state: UiState, viewModel: MainViewModel) {
             val printer = catalog.printer(selection.vendor, selection.printer)
             val filaments = printer?.let { catalog.filamentsFor(selection.vendor, it) }.orEmpty()
             SearchList(
-                title = "Filament",
+                title = "Пластик",
                 items = filaments.map { ref ->
                     PickItem("${ref.vendor}\u0000${ref.name}", ref.name, displayVendor(ref.vendor), ref == selection.filament)
                 },
@@ -103,8 +104,8 @@ fun PresetsScreen(state: UiState, viewModel: MainViewModel) {
 }
 
 private fun displayVendor(vendor: String) = when (vendor) {
-    Catalog.LIBRARY_VENDOR -> "OrcaSlicer generic"
-    "Custom" -> "Generic / custom printer"
+    Catalog.LIBRARY_VENDOR -> "Универсальные OrcaSlicer"
+    "Custom" -> "Универсальный / свой принтер"
     else -> vendor
 }
 
@@ -115,9 +116,9 @@ private fun PresetsOverview(state: UiState, onPick: (Picker) -> Unit, viewModel:
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Printer and presets") },
+                title = { Text("Принтер и профили") },
                 navigationIcon = {
-                    IconButton(onClick = viewModel::back) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
+                    IconButton(onClick = viewModel::back) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад") }
                 },
             )
         },
@@ -126,9 +127,9 @@ private fun PresetsOverview(state: UiState, onPick: (Picker) -> Unit, viewModel:
             Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            PresetCard("Printer", selection.printer, displayVendor(selection.vendor)) { onPick(Picker.VENDOR) }
-            PresetCard("Process", selection.process, "Layer height, walls, infill, supports") { onPick(Picker.PROCESS) }
-            PresetCard("Filament", selection.filament.name, displayVendor(selection.filament.vendor)) { onPick(Picker.FILAMENT) }
+            PresetCard("Принтер", machine?.string("name") ?: selection.printer, if (state.edits.importedMachine != null) "Импортированный профиль" else displayVendor(selection.vendor)) { onPick(Picker.VENDOR) }
+            PresetCard("Профиль печати", state.inputs?.process?.string("name") ?: selection.process, "Слой, стенки, заполнение и поддержки") { onPick(Picker.PROCESS) }
+            PresetCard("Пластик", state.inputs?.filament?.string("name") ?: selection.filament.name, if (state.edits.importedFilament != null) "Импортированный профиль" else displayVendor(selection.filament.vendor)) { onPick(Picker.FILAMENT) }
             val bed = state.bed
             if (bed != null && machine != null) {
                 Text(
@@ -145,9 +146,9 @@ private fun PresetsOverview(state: UiState, onPick: (Picker) -> Unit, viewModel:
             )
             Spacer(Modifier.height(8.dp))
             OutlinedButton(onClick = { viewModel.navigate(Screen.SETTINGS) }, modifier = Modifier.fillMaxWidth()) {
-                Text("Adjust printer and print settings")
+                Text("Настроить параметры")
             }
-            Button(onClick = viewModel::back, modifier = Modifier.fillMaxWidth()) { Text("Done") }
+            Button(onClick = viewModel::back, modifier = Modifier.fillMaxWidth()) { Text("Готово") }
         }
     }
 }
@@ -182,7 +183,7 @@ private fun SearchList(
         topBar = {
             TopAppBar(
                 title = { Text(title) },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад") } },
             )
         },
     ) { padding ->
@@ -191,7 +192,7 @@ private fun SearchList(
                 value = query,
                 onValueChange = { query = it },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                placeholder = { Text("Search") },
+                placeholder = { Text("Поиск") },
                 leadingIcon = { Icon(Icons.Default.Search, null) },
                 singleLine = true,
             )
@@ -204,7 +205,7 @@ private fun SearchList(
                         null
                     }
                     val trailing: (@Composable () -> Unit)? = if (item.selected) {
-                        { Icon(Icons.Default.Check, "Selected", tint = MaterialTheme.colorScheme.primary) }
+                        { Icon(Icons.Default.Check, "Выбрано", tint = MaterialTheme.colorScheme.primary) }
                     } else if (showChevron) {
                         { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null) }
                     } else {

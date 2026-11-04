@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -24,6 +26,11 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Surface
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -55,6 +62,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.whoxllm.orcamicro.core.mesh.Placement
+import io.github.whoxllm.orcamicro.core.profiles.string
 import io.github.whoxllm.orcamicro.core.settings.BedShape
 import io.github.whoxllm.orcamicro.render.PlateRenderer
 import io.github.whoxllm.orcamicro.render.SceneView
@@ -75,9 +83,9 @@ fun PlateScreen(state: UiState, viewModel: MainViewModel) {
             TopAppBar(
                 title = {
                     Column {
-                        Text("OrcaMicro")
+                        Text("OrcaPocket")
                         Text(
-                            state.model?.name ?: "No model",
+                            state.model?.name ?: "Стол пуст",
                             style = MaterialTheme.typography.labelMedium,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -86,33 +94,31 @@ fun PlateScreen(state: UiState, viewModel: MainViewModel) {
                 },
                 actions = {
                     if (state.model != null) {
-                        IconButton(onClick = viewModel::removeModel) { Icon(Icons.Default.Delete, "Remove model") }
+                        IconButton(onClick = viewModel::removeModel) { Icon(Icons.Default.Delete, "Удалить модель") }
                     }
-                    IconButton(onClick = { viewModel.navigate(Screen.ABOUT) }) { Icon(Icons.Default.Info, "About") }
+                    IconButton(onClick = { viewModel.navigate(Screen.ABOUT) }) { Icon(Icons.Default.Info, "О приложении") }
                 },
             )
         },
         bottomBar = {
-            BottomAppBar(
-                actions = {
-                    IconButton(onClick = { openModel.launch(arrayOf("*/*")) }) { Icon(Icons.Default.Add, "Open STL") }
-                    IconButton(onClick = { showPlacement = true }, enabled = state.model != null) {
-                        Icon(Icons.Default.Edit, "Move, rotate and scale")
-                    }
-                    IconButton(onClick = { viewModel.navigate(Screen.PRESETS) }) { Icon(Icons.Default.Build, "Printer and presets") }
-                    IconButton(onClick = { viewModel.navigate(Screen.SETTINGS) }) { Icon(Icons.Default.Settings, "Print settings") }
-                    if (state.lastResult != null) {
-                        TextButton(onClick = { viewModel.navigate(Screen.PREVIEW) }) { Text("Preview") }
-                    }
-                },
-                floatingActionButton = {
-                    ExtendedFloatingActionButton(
+            Surface(tonalElevation = 3.dp) {
+                Column(Modifier.navigationBarsPadding()) {
+                    Button(
                         onClick = viewModel::slice,
-                        icon = { Icon(Icons.Default.PlayArrow, null) },
-                        text = { Text("Slice") },
-                    )
-                },
-            )
+                        enabled = state.model?.fits == true && state.slice !is SliceState.Running,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).heightIn(min = 56.dp),
+                    ) {
+                        Icon(Icons.Default.PlayArrow, null)
+                        Text("Нарезать модель", Modifier.padding(start = 8.dp))
+                    }
+                    NavigationBar(windowInsets = WindowInsets(0, 0, 0, 0)) {
+                        NavigationBarItem(selected = true, onClick = { openModel.launch(arrayOf("*/*")) }, icon = { Icon(Icons.Default.Add, null) }, label = { Text("STL") })
+                        NavigationBarItem(selected = false, onClick = { viewModel.navigate(Screen.PRESETS) }, icon = { Icon(Icons.Default.Build, null) }, label = { Text("Профили") })
+                        NavigationBarItem(selected = false, onClick = { viewModel.navigate(Screen.SETTINGS) }, icon = { Icon(Icons.Default.Settings, null) }, label = { Text("Опции", maxLines = 1) })
+                        NavigationBarItem(selected = false, onClick = { viewModel.navigate(Screen.PREVIEW) }, enabled = state.lastResult != null, icon = { Icon(Icons.Default.PlayArrow, null) }, label = { Text("Слои") })
+                    }
+                }
+            }
         },
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
@@ -134,13 +140,16 @@ fun PlateScreen(state: UiState, viewModel: MainViewModel) {
             if (model == null) {
                 Card(Modifier.align(Alignment.Center).padding(32.dp)) {
                     Column(Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Open an STL file to start", style = MaterialTheme.typography.titleMedium)
+                        Text("Добавьте модель на стол", style = MaterialTheme.typography.titleMedium)
                         Spacer(Modifier.height(16.dp))
-                        Button(onClick = { openModel.launch(arrayOf("*/*")) }) { Text("Open STL") }
+                        Button(onClick = { openModel.launch(arrayOf("*/*")) }) { Text("Открыть STL") }
                     }
                 }
             } else {
                 ModelInfo(model, Modifier.align(Alignment.BottomStart).padding(12.dp))
+                FilledTonalIconButton(onClick = { showPlacement = true }, modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp).heightIn(min = 48.dp)) {
+                    Icon(Icons.Default.Edit, "Переместить, повернуть и масштабировать объект")
+                }
             }
         }
     }
@@ -165,9 +174,9 @@ private fun PresetSummary(state: UiState, onClick: () -> Unit, modifier: Modifie
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f)),
     ) {
         Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
-            Text(selection.printer, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(state.inputs?.machine?.string("name") ?: selection.printer, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
-                "${selection.process}  ·  ${selection.filament.name}",
+                "${state.inputs?.process?.string("name") ?: selection.process}  ·  ${state.inputs?.filament?.string("name") ?: selection.filament.name}",
                 style = MaterialTheme.typography.bodySmall,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -185,7 +194,7 @@ private fun ModelInfo(model: ModelState, modifier: Modifier = Modifier) {
                 style = MaterialTheme.typography.labelLarge,
             )
             if (!model.fits) {
-                Text("Outside the build volume", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelMedium)
+                Text("Модель выходит за границы стола", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelMedium)
             }
         }
     }
@@ -207,14 +216,14 @@ private fun PlacementSheet(
             Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).navigationBarsPadding(),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text("Place the model", style = MaterialTheme.typography.titleMedium)
+            Text("Положение модели", style = MaterialTheme.typography.titleMedium)
             Text(
                 "%.1f × %.1f × %.1f mm".format(model.size.x, model.size.y, model.size.z) +
                     if (model.fits) "" else "  ·  does not fit",
                 color = if (model.fits) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error,
             )
             HorizontalDivider()
-            Text("Rotate", style = MaterialTheme.typography.labelLarge)
+            Text("Поворот", style = MaterialTheme.typography.labelLarge)
             RotateRow("X", p.rotationX) { onChange(p.copy(rotationX = it)) }
             RotateRow("Y", p.rotationY) { onChange(p.copy(rotationY = it)) }
             RotateRow("Z", p.rotationZ) { onChange(p.copy(rotationZ = it)) }
@@ -222,7 +231,7 @@ private fun PlacementSheet(
                 onChange(p.copy(rotationZ = it.roundToInt().toFloat()))
             }
             HorizontalDivider()
-            LabeledSlider("Scale", "${p.scalePercent.roundToInt()}%", p.scalePercent, 10f..400f) {
+            LabeledSlider("Масштаб", "${p.scalePercent.roundToInt()}%", p.scalePercent, 10f..400f) {
                 onChange(p.copy(scalePercent = it.roundToInt().toFloat()))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -240,12 +249,12 @@ private fun PlacementSheet(
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 8.dp)) {
-                OutlinedButton(onClick = onCenter) { Text("Center") }
+                OutlinedButton(onClick = onCenter) { Text("В центр") }
                 OutlinedButton(onClick = {
                     onChange(Placement(centerX = bed?.centerX ?: p.centerX, centerY = bed?.centerY ?: p.centerY))
                 }) { Text("Reset") }
                 Spacer(Modifier.weight(1f))
-                Button(onClick = onDismiss) { Text("Done") }
+                Button(onClick = onDismiss) { Text("Готово") }
             }
         }
     }

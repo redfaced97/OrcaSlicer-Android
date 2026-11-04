@@ -25,18 +25,18 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "io.github.whoxllm.orcamicro"
-        minSdk = 28
+        applicationId = "io.github.redfaced97.orcapocket"
+        minSdk = 34
         targetSdk = 35
         versionCode = 1
-        versionName = "0.1.0"
+        versionName = "0.2.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk {
             // The engine is built for 64-bit ARM phones only.
             abiFilters += "arm64-v8a"
         }
         buildConfigField("String", "ORCA_VERSION", "\"$orcaTag\"")
-        buildConfigField("String", "SOURCE_URL", "\"https://github.com/whoxllm/OrcaMicro\"")
+        buildConfigField("String", "SOURCE_URL", "\"${providers.gradleProperty("sourceUrl").orElse("").get()}\"")
     }
 
     signingConfigs {
@@ -74,8 +74,7 @@ android {
     sourceSets["main"].assets.srcDir(layout.buildDirectory.dir("generated/orcaAssets").get().asFile)
 
     lint {
-        // Release builds run lint; report issues without failing CI builds over them.
-        abortOnError = false
+        abortOnError = true
         checkReleaseBuilds = false
     }
 }

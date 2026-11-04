@@ -24,6 +24,7 @@ data class SavedState(
     val edits: PresetEdits = PresetEdits(),
     val modelName: String? = null,
     val placement: Placement? = null,
+    val favorites: Set<String> = emptySet(),
 )
 
 /** Persists [SavedState] as JSON in app storage, and keeps a copy of the current model. */
@@ -37,6 +38,7 @@ class SettingsStore(context: Context) {
         SavedState()
     }
 
+    @Synchronized
     fun save(state: SavedState) {
         val tmp = File(stateFile.path + ".tmp")
         tmp.writeText(json.encodeToString(SavedState.serializer(), state))

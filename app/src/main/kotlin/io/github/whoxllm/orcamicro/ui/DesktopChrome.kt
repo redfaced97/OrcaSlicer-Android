@@ -2,6 +2,7 @@ package io.github.whoxllm.orcamicro.ui
 
 import io.github.whoxllm.orcamicro.core.i18n.tr
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -25,7 +26,9 @@ fun DesktopHeader(state: UiState, viewModel: MainViewModel, actions: @Composable
     Column(Modifier.statusBarsPadding()) {
         Surface {
             Row(Modifier.fillMaxWidth().heightIn(min = 52.dp).padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Image(painterResource(R.drawable.orca_logo), null, Modifier.size(26.dp))
+                Box(Modifier.size(44.dp).clickable(onClick={viewModel.navigate(Screen.HOME)}).semantics { contentDescription=tr("На главную") },contentAlignment=Alignment.Center) {
+                    Image(painterResource(R.drawable.orca_logo), null, Modifier.size(26.dp))
+                }
                 Text(if (state.screen == Screen.PRINT_SETUP) "Quick Print" else if (state.screen == Screen.PRESETS) tr("Профили") else tabs.firstOrNull { it.first == selected }?.second.orEmpty(), Modifier.weight(1f).padding(start = 8.dp), style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if(state.screen in setOf(Screen.PLATE,Screen.SETTINGS,Screen.PREVIEW,Screen.PRINT_SETUP)) {
                     IconButton(onClick = { viewModel.openPreset(state.settingsType) }) { OrcaIcon(OrcaAction.Library, tr("Библиотека профилей")) }

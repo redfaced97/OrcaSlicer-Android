@@ -56,6 +56,11 @@ import io.github.whoxllm.orcamicro.core.mesh.ModelFiles
 import io.github.whoxllm.orcamicro.core.mesh.StlWriter
 import kotlinx.coroutines.CancellationException
 import java.util.UUID
+import io.github.whoxllm.orcamicro.data.ProjectStore
+import io.github.whoxllm.orcamicro.data.ProjectDocument
+import io.github.whoxllm.orcamicro.render.ModelThumbnail
+import kotlinx.coroutines.CompletableDeferred
+import java.util.concurrent.atomic.AtomicInteger
 
 /** Raw (unedited) presets for the current selection. */
 private class ResolvedPresets(val selection: PresetSelection, val machine: JsonObject, val process: JsonObject, val filament: JsonObject)
@@ -64,6 +69,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application
     private val profiles = ProfileRepository(application.assets)
     private val store = SettingsStore(application)
+    private val projects = ProjectStore(application)
     private val engine = EngineClient(application)
 
     private val _state = MutableStateFlow(UiState())
@@ -74,7 +80,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private var selectionBackup: UiState? = null
     private var placementJob: Job? = null
     private var sliceJob: Job? = null
-    private val saves = Channel<SavedState>(Channel.CONFLATED)
+    private data class SaveRequest(val saved:SavedState?=null,val project:ProjectDocument?=null,val mesh:Mesh?=null,val barrier:CompletableDeferred<Unit>?=null)
+    private val saves = Channel<SaveRequest>(Channel.UNLIMITED)
+    private val pendingProjectSaves=AtomicInteger()
+    private var saveError:Exception?=null
     private var telemetryClient: PrinterClient? = null
     private var telemetryConnection: PrinterConnection? = null
     private var historyAt = 0L
@@ -84,10 +93,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private var printSetupReturn = false
     private val credentialStore = CatalogCredentialStore(application)
     private var pendingExternalLink:String?=null
+    private var pendingExternalModel:Uri?=null
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
-            for (saved in saves) runCatching { store.save(saved) }.onFailure { showMessage(tr("Не удалось сохранить настройки: {0}" ,it.message)) }
+            for (request in saves) {
+                try {
+                    request.saved?.let(store::save)
+                    if(request.project!=null && request.mesh!=null) {
+                        val recent=projects.save(request.project,request.mesh)
+                        _state.update { it.copy(recentProjects=recent) }
+                    }
+                    if(request.saved!=null)saveError=null
+                } catch(e:Exception) { saveError=e;showMessage(tr("Не удалось сохранить проект или настройки: {0}",e.message)) }
+                finally {
+                    if(request.project!=null) { val remaining=pendingProjectSaves.decrementAndGet();_state.update { it.copy(projectSaving=remaining>0) } }
+                    request.barrier?.let { if(saveError==null)it.complete(Unit)else it.completeExceptionally(requireNotNull(saveError)) }
+                }
+            }
         }
         viewModelScope.launch { load() }
     }
@@ -97,6 +120,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private suspend fun load() {
         try {
             val saved = withContext(Dispatchers.IO) { store.load() }
+            val recent=withContext(Dispatchers.IO) { projects.list() }
             io.github.whoxllm.orcamicro.core.i18n.AppText.parameterLanguage=saved.parameterLanguage
             val cacheDays=saved.modelCacheDays.takeIf { it in ModelCache.durations } ?: 7
             withContext(Dispatchers.IO) { ModelCache.clean(File(app.filesDir,"library"),cacheDays) }
@@ -110,7 +134,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val active = printers.firstOrNull { it.id == saved.activePrinterId } ?: printers.firstOrNull { it.connection == saved.connection } ?: printers.firstOrNull()
             _state.update {
                 it.copy(
-                    ready = true,
+                    recentProjects=recent,
+                    activeProjectId=saved.activeProjectId?.takeIf { id->recent.any { p->p.document.id==id } },
                     catalogCredentials = apiCredentials,
                     activeModelCard = saved.libraryModels.firstOrNull { it.id==saved.activeModelId },
                     catalog = catalog,
@@ -131,11 +156,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     parameterLanguage = saved.parameterLanguage,
                     temperatureWindowMinutes=saved.temperatureWindowMinutes.takeIf{it in listOf(1,5,10)} ?: 10,
                     telemetryIntervalSeconds=saved.telemetryIntervalSeconds.takeIf{it in listOf(1,5,10,30)} ?: 5,
-                    screen = if (firstRun) Screen.PRESETS else Screen.PLATE,
+                    screen = Screen.HOME,
                 )
             }
             refreshInputs()
             restoreModel(saved)
+            _state.update { it.copy(ready=true) }
+            if(_state.value.model!=null)persist()
+            pendingExternalModel?.let { pendingExternalModel=null;openModel(it) }
             pendingExternalLink?.let { pendingExternalLink=null;openModelLink(it) }
         } catch (e: Exception) {
             _state.update { it.copy(ready = true, loadError = tr("Не удалось загрузить профили принтера: {0}" ,e.message)) }
@@ -148,6 +176,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             runCatching { StlReader.read(store.modelFile.readBytes()) }.getOrNull()
         } ?: return
         setModel(name, mesh, saved.placement ?: centeredPlacement())
+        _state.update { it.copy(activeProjectId=it.activeProjectId ?: UUID.randomUUID().toString()) }
     }
 
     private fun isValid(catalog: Catalog, selection: PresetSelection): Boolean {
@@ -405,7 +434,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     // ---- model ---------------------------------------------------------------------------
 
-    fun openModel(uri: Uri) = importModel(uri)
+    fun openModel(uri: Uri) {
+        if(!_state.value.ready) { pendingExternalModel=uri;return }
+        importModel(uri)
+    }
 
     fun attachCatalogFile(uri:Uri) {
         val s=_state.value
@@ -497,7 +529,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun removeModel() {
-        _state.update { it.copy(model = null, activeModelCard=null, lastResult = null, externalGcode=null,uploadedFile=null, slice = SliceState.Idle) }
+        _state.update { it.copy(model = null, activeProjectId=null, activeModelCard=null, lastResult = null, externalGcode=null,uploadedFile=null, slice = SliceState.Idle) }
         viewModelScope.launch(Dispatchers.IO) { store.modelFile.delete() }
         persist()
     }
@@ -555,21 +587,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 result == null -> fail(tr("Движок нарезки не ответил."), job.logTail())
                 !result.ok -> fail(explain(result), job.logTail())
                 _state.value.model !== state.model || _state.value.inputs !== state.inputs -> _state.update { it.copy(slice=SliceState.Idle,lastResult=null,externalGcode=null,uploadedFile=null,screen=Screen.PLATE,message=tr("Модель или параметры изменились. Повторите нарезку.")) }
-                else -> showPreview(job, result, model.name, quickPrint)
+                else -> showPreview(job, result, model, state.modelRgb(), quickPrint)
             }
         }
     }
 
-    private suspend fun showPreview(job: SliceJob, result: EngineResponse, modelName: String, quickPrint:Boolean) {
+    private suspend fun showPreview(job: SliceJob, result: EngineResponse, model:ModelState, color:Int, quickPrint:Boolean) {
         _state.update { it.copy(slice = SliceState.Running(100, tr("Подготовка предпросмотра"))) }
         val gcode = result.gcodePath?.let { File(it) }?.takeIf { it.isFile } ?: job.gcode
         try {
+            withContext(Dispatchers.IO) { ModelThumbnail.write(gcode,model.mesh,model.placement,color) }
             val toolpaths = withContext(Dispatchers.Default) { gcode.bufferedReader().use { GcodeParser.parse(it) } }
-            val done = SliceState.Done(gcode, toolpaths, result.warnings.map(Russian::text), modelName)
+            val done = SliceState.Done(gcode, toolpaths, result.warnings.map(Russian::text), model.name)
             _state.update { it.copy(slice = SliceState.Idle, lastResult = done, screen = if(quickPrint)Screen.PRINT_SETUP else Screen.PREVIEW) }
         } catch (e: OutOfMemoryError) {
             fail(tr("G-code создан, но слишком велик для предпросмотра на этом устройстве."), null)
-        }
+        } catch(e:CancellationException) { throw e }
+        catch(e:Exception) { fail(tr("Не удалось подготовить G-code: {0}",e.message),job.logTail()) }
     }
 
     private fun explain(result: EngineResponse): String {
@@ -740,7 +774,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val mesh=withContext(Dispatchers.IO) { ModelFiles.read(file,entry).also { mesh->file.setLastModified(System.currentTimeMillis());store.modelFile.outputStream().use { StlWriter.write(mesh,it) } } }
                 val project=withContext(Dispatchers.IO){runCatching{ModelFiles.projectSettings(file,entry)}.getOrNull()}
                 setModel(entry?.substringAfterLast('/') ?: card.filename ?: card.title,mesh,centeredPlacement())
-                _state.update { it.copy(libraryBusy=false,libraryPercent=null,libraryProgress=null,lastResult=null,externalGcode=null,uploadedFile=null,printDialog=false,activeModelCard=card,projectSettings=project,quickPrintPlacement=false,screen=if(setup)Screen.PRINT_SETUP else Screen.PLATE) };persist()
+                _state.update { it.copy(libraryBusy=false,libraryPercent=null,libraryProgress=null,lastResult=null,externalGcode=null,uploadedFile=null,printDialog=false,activeProjectId=UUID.randomUUID().toString(),activeModelCard=card,projectSettings=project,quickPrintPlacement=false,screen=if(setup)Screen.PRINT_SETUP else Screen.PLATE) };persist()
             } catch(e:Exception) { _state.update { it.copy(libraryBusy=false,libraryPercent=null,libraryProgress=null) };showMessage(tr("Не удалось открыть модель: {0}" ,e.message)) }
             catch(e:OutOfMemoryError) { _state.update { it.copy(libraryBusy=false,libraryPercent=null,libraryProgress=null) };showMessage(tr("Модель слишком большая для телефона")) }
         }
@@ -796,6 +830,85 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     // ---- navigation and messages ---------------------------------------------------------
 
+    private suspend fun flushSaves() {
+        val barrier=CompletableDeferred<Unit>()
+        saves.send(SaveRequest(barrier=barrier));barrier.await()
+    }
+
+    private suspend fun saveCurrentProject() {
+        selectionJob?.join();placementJob?.join()
+        persist();flushSaves()
+    }
+
+    private fun projectActionAllowed():Boolean {
+        val s=_state.value
+        if(s.slice is SliceState.Running || s.uploadPercent!=null || s.libraryBusy) {
+            showMessage(tr("Дождитесь завершения текущей операции"));return false
+        }
+        return true
+    }
+
+    fun newProject() {
+        if(!projectActionAllowed())return
+        persist()
+        _state.update { it.copy(libraryBusy=true,libraryProgress=tr("Сохранение проекта…")) }
+        viewModelScope.launch {
+            try {
+                saveCurrentProject()
+                placementJob?.cancel()
+                withContext(Dispatchers.IO) { store.modelFile.delete() }
+                _state.update { it.copy(model=null,activeProjectId=null,activeModelCard=null,lastResult=null,externalGcode=null,uploadedFile=null,projectSettings=null,quickPrintPlacement=false,printDialog=false,slice=SliceState.Idle,screen=Screen.PLATE) }
+                persist()
+            } catch(e:CancellationException) { throw e }
+            catch(e:Exception) { showMessage(tr("Не удалось сохранить проект: {0}",e.message)) }
+            finally { _state.update { it.copy(libraryBusy=false,libraryProgress=null) } }
+        }
+    }
+
+    fun openRecentProject(id:String) {
+        if(!projectActionAllowed())return
+        persist()
+        _state.update { it.copy(libraryBusy=true,libraryProgress=tr("Открытие проекта…")) }
+        viewModelScope.launch {
+            try {
+                saveCurrentProject()
+                val opened=withContext(Dispatchers.IO) { projects.open(id) }
+                val doc=opened.document
+                val selection=doc.selection.takeIf { isValid(requireNotNull(_state.value.catalog),it) }
+                    ?: error(tr("Профили этого проекта недоступны"))
+                val resolved=withContext(Dispatchers.IO) { resolve(selection) }
+                withContext(Dispatchers.IO) { store.modelFile.outputStream().buffered().use { StlWriter.write(opened.mesh,it) } }
+                presets=resolved;selectionBackup=null
+                _state.update { it.copy(selection=selection,edits=doc.edits,inputs=null,activeProjectId=id,activeModelCard=it.libraryModels.firstOrNull { m->m.id==doc.activeModelId },lastResult=null,externalGcode=null,uploadedFile=null,projectSettings=null,quickPrintPlacement=false,printDialog=false) }
+                refreshInputs()
+                setModel(doc.name,opened.mesh,doc.placement)
+                _state.update { it.copy(screen=Screen.PLATE) }
+                persist()
+            } catch(e:CancellationException) { throw e }
+            catch(e:Exception) { showMessage(tr("Не удалось открыть проект: {0}",e.message)) }
+            catch(e:OutOfMemoryError) { showMessage(tr("Модель слишком большая для телефона")) }
+            finally { _state.update { it.copy(libraryBusy=false,libraryProgress=null) } }
+        }
+    }
+
+    fun deleteRecentProject(id:String) {
+        if(!projectActionAllowed())return
+        _state.update { it.copy(libraryBusy=true,libraryProgress=tr("Удаление проекта…")) }
+        viewModelScope.launch {
+            try {
+                saveCurrentProject()
+                val recent=withContext(Dispatchers.IO) { projects.delete(id) }
+                if(_state.value.activeProjectId==id) {
+                    withContext(Dispatchers.IO) { store.modelFile.delete() }
+                    _state.update { it.copy(model=null,activeProjectId=null,activeModelCard=null,lastResult=null,externalGcode=null,uploadedFile=null,projectSettings=null,slice=SliceState.Idle) }
+                }
+                _state.update { it.copy(recentProjects=recent) }
+                persist()
+            } catch(e:Exception) { showMessage(tr("Не удалось удалить проект: {0}",e.message)) }
+            finally { _state.update { it.copy(libraryBusy=false,libraryProgress=null) } }
+        }
+    }
+
     fun openSettings(type: PresetType = PresetType.PROCESS) {
         if(_state.value.screen==Screen.PRINT_SETUP)printSetupReturn=true
         _state.update { it.copy(screen = Screen.SETTINGS, settingsType = type) }
@@ -836,11 +949,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         persist()
     }
     fun deletePrinter(id:String) {
-        if(_state.value.deviceBusy||_state.value.uploadPercent!=null)return
+        if(_state.value.deviceBusy||_state.value.uploadPercent!=null) { return }
         _state.update { it.copy(printers=it.printers.filterNot { p->p.id==id }) }
         if(_state.value.activePrinterId==id) {
             val next=_state.value.printers.firstOrNull()
-            if(next!=null)selectSavedPrinter(next.id) else _state.update { it.copy(connection=PrinterConnection(),activePrinterId=null,telemetry=null,temperatureHistory=emptyList(),telemetryAt=null,uploadedFile=null,lastResult=null,externalGcode=null) }
+            if(next!=null) {
+                selectSavedPrinter(next.id)
+            } else {
+                _state.update { it.copy(connection=PrinterConnection(),activePrinterId=null,telemetry=null,temperatureHistory=emptyList(),telemetryAt=null,uploadedFile=null,lastResult=null,externalGcode=null) }
+            }
         }
         persist()
     }
@@ -1025,13 +1142,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun closeAppSettings() = _state.update { it.copy(appSettingsOpen=false) }
 
     fun navigate(screen: Screen) {
+        if(screen==Screen.HOME)persist()
         printSetupReturn=false
         _state.update { it.copy(screen = screen, appSettingsOpen=false, presetPicker = null,quickPrintPlacement=false) }
     }
 
     fun back() {
         if(_state.value.appSettingsOpen) { closeAppSettings();return }
-        _state.update { it.copy(screen = if(it.quickPrintPlacement||printSetupReturn)Screen.PRINT_SETUP else Screen.PLATE,quickPrintPlacement=false) }
+        if(_state.value.screen==Screen.PLATE)persist()
+        _state.update { it.copy(screen = when {
+            it.quickPrintPlacement||printSetupReturn -> Screen.PRINT_SETUP
+            it.screen in setOf(Screen.PLATE,Screen.LIBRARY,Screen.DEVICE,Screen.ABOUT) -> Screen.HOME
+            else -> Screen.PLATE
+        },quickPrintPlacement=false) }
         printSetupReturn=false
     }
 
@@ -1042,7 +1165,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun persist() {
         val state = _state.value
         val saved = SavedState(state.selection, state.edits, state.model?.name, state.model?.placement, state.favorites, state.connection, state.userPresets, state.renderOptions,
-            state.printers,state.activePrinterId,state.libraryModels,state.modelCacheDays,state.activeModelCard?.id,state.temperatureWindowMinutes,state.telemetryIntervalSeconds,state.parameterLanguage)
-        saves.trySend(saved)
+            state.printers,state.activePrinterId,state.libraryModels,state.modelCacheDays,state.activeModelCard?.id,state.temperatureWindowMinutes,state.telemetryIntervalSeconds,state.parameterLanguage,state.activeProjectId)
+        val model=state.model
+        val project=if(model!=null && state.selection!=null && state.activeProjectId!=null && state.inputs!=null)
+            ProjectDocument(state.activeProjectId,model.name,state.selection,state.edits,model.placement,state.modelRgb(),state.inputs.machine.string("name") ?: state.selection.printer,state.inputs.filament.string("name") ?: state.selection.filament.name,model.mesh.triangleCount,state.activeModelCard?.id)
+        else null
+        if(project!=null) { pendingProjectSaves.incrementAndGet();_state.update { it.copy(projectSaving=true) } }
+        saves.trySend(SaveRequest(saved,project,model?.mesh))
     }
 }

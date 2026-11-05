@@ -14,6 +14,14 @@ Prepare models, slice locally on your phone, inspect toolpaths and send G-code t
 
 [Download APK](https://github.com/redfaced97/OrcaSlicer-Android/releases/latest) · [User guide (RU)](docs/USAGE.md) · [Import profiles (RU)](docs/PROFILES.md) · [Build instructions (RU)](docs/BUILDING.md)
 
+## New in 0.6.9
+
+- **Home screen:** create a project, open an STL / 3MF, continue working, or reopen recent projects with thumbnails and printer / filament names.
+- **Automatic project saving:** geometry, rotation, scale, plate position and selected presets with edits are stored on the device. Tap a card to resume. Projects survive model cache expiry and cleanup; deletion requires confirmation on Home. Tap the Orca logo in the top bar to return Home.
+- **G-code thumbnails:** every completed slice embeds transparent **32×32 and 400×400 PNGs** using OrcaSlicer thumbnail blocks. Previews use the model’s rotation and filament colour, depth-tested surfaces, lighting and antialiased edges, without the build plate or app UI. Both local exports and printer uploads contain the images.
+
+Example: open `enclosure.3mf`, choose PLA and a 0.20 mm layer height, rotate the model, then return Home. Its card restores the same model and settings after a restart. **Slice → Upload** sends a G-code file with both previews included. Moonraker / Mainsail / Fluidd read standard PNG blocks; OctoPrint thumbnail display depends on the installed plugin.
+
 ## New in 0.6.8
 
 - The updater scans published releases and selects the newest compatible APK by `published_at`, independently of the GitHub Latest label.

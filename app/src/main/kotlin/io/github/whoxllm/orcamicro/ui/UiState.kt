@@ -16,7 +16,7 @@ import io.github.whoxllm.orcamicro.core.network.PrinterConnection
 import io.github.whoxllm.orcamicro.core.profiles.PresetType
 import io.github.whoxllm.orcamicro.core.network.*
 
-enum class Screen { PLATE, PRESETS, SETTINGS, PREVIEW, DEVICE, ABOUT, LIBRARY, PRINT_SETUP }
+enum class Screen { HOME, PLATE, PRESETS, SETTINGS, PREVIEW, DEVICE, ABOUT, LIBRARY, PRINT_SETUP }
 
 /** The loaded model: the mesh as read, how it is placed, and the placed result for display. */
 data class ModelState(
@@ -64,7 +64,10 @@ data class UiState(
     val lastResult: SliceState.Done? = null,
     val externalGcode:ExternalGcode?=null,
     val projectSettings: kotlinx.serialization.json.JsonObject?=null,
-    val screen: Screen = Screen.PLATE,
+    val screen: Screen = Screen.HOME,
+    val activeProjectId:String?=null,
+    val recentProjects:List<io.github.whoxllm.orcamicro.data.RecentProject> = emptyList(),
+    val projectSaving:Boolean=false,
     val message: String? = null,
     val favorites: Set<String> = emptySet(),
     val settingsType: PresetType = PresetType.PROCESS,

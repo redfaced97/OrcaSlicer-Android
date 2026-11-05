@@ -8,7 +8,7 @@ import zipfile
 
 manifest = json.loads(Path('release.json').read_text())
 version = manifest['version']
-assert re.fullmatch(r'\d+\.\d+\.\d+(?:-[a-zA-Z0-9.]+)?', version), 'Invalid version'
+assert re.fullmatch(r'\d+(?:\.\d+){2,3}(?:-[a-zA-Z0-9.]+)?', version), 'Invalid version'
 assert re.fullmatch(r'[0-9a-f]{40}', manifest['source_sha']), 'Invalid source SHA'
 apk = Path(f'OrcaSlicer-arm64-v{version}.apk')
 assert apk.stat().st_size < 100 * 1024 * 1024, 'APK exceeds GitHub file limit'
@@ -25,6 +25,6 @@ existing = subprocess.run(['gh', 'release', 'view', tag, '--json', 'tagName'], c
 if existing.returncode == 0:
     raise SystemExit('Release already exists; published APKs are never overwritten')
 subprocess.run(['gh', 'release', 'create', tag, str(apk), str(checksums),
-                '--target', manifest['source_sha'], '--title', f'OrcaSlicer Android {version}',
+                '--latest', '--target', manifest['source_sha'], '--title', f'OrcaSlicer Android {version}',
                 '--notes-file', 'release-notes.md'], check=True)
 print(f'Published {tag} from {manifest["source_sha"]}')

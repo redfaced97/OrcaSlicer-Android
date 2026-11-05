@@ -8,7 +8,7 @@ import zipfile
 
 manifest = json.loads(Path('release.json').read_text())
 version = manifest['version']
-assert re.fullmatch(r'\d+(?:\.\d+){2,3}(?:-[a-zA-Z0-9.]+)?', version), 'Invalid version'
+assert re.fullmatch(r'\d+(?:\.\d+)*(?:-[a-zA-Z0-9.]+)?', version), 'Invalid version'
 assert re.fullmatch(r'[0-9a-f]{40}', manifest['source_sha']), 'Invalid source SHA'
 apk = Path(f'OrcaSlicer-arm64-v{version}.apk')
 assert apk.stat().st_size < 100 * 1024 * 1024, 'APK exceeds GitHub file limit'

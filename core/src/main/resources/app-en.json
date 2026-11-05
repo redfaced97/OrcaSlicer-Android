@@ -711,5 +711,6 @@
   "По языку системы": "Follow system language",
   "Язык параметров": "Parameter language",
   "Как у интерфейса": "Match interface",
-  "Названия, описания, разделы и значения параметров печати могут использовать другой язык.": "Print parameter names, descriptions, categories and values can use a different language."
+  "Названия, описания, разделы и значения параметров печати могут использовать другой язык.": "Print parameter names, descriptions, categories and values can use a different language.",
+  "Слишком много релизов для проверки обновлений": "Too many releases to check for updates"
 }

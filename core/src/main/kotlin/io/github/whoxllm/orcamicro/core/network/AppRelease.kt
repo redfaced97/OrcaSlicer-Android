@@ -7,28 +7,79 @@ import java.io.File
 import java.net.HttpURLConnection
 import java.net.URI
 import java.security.MessageDigest
+import java.time.Instant
 
 /** Only stable ARM64 releases from this application's own GitHub repository. */
 @Serializable
-data class AppRelease(val version:String,val notes:String,val pageUrl:String,val apkUrl:String,val apkName:String,val bytes:Long,val sha256:String) {
-    fun newerThan(installed:String)=ReleaseVersion.compare(version,installed)>0
+data class AppRelease(
+    val version:String,val notes:String,val pageUrl:String,val apkUrl:String,val apkName:String,val bytes:Long,val sha256:String,
+    val publishedAtMillis:Long?=null,val tag:String="v${version}",
+) {
+    fun newerThan(installed:String,installedPublishedAtMillis:Long?=null):Boolean {
+        if(version==installed.removePrefix("v"))return false
+        if(publishedAtMillis!=null&&installedPublishedAtMillis!=null&&publishedAtMillis!=installedPublishedAtMillis)
+            return publishedAtMillis>installedPublishedAtMillis
+        return ReleaseVersion.compare(version,installed)>0
+    }
 }
 
+data class ReleaseCheck(val update:AppRelease?,val installedPublishedAtMillis:Long?)
+
 object ReleaseVersion {
-    private val pattern=Regex("v?(\\d+)\\.(\\d+)\\.(\\d+)(?:\\.(\\d+))?")
-    fun parts(text:String):List<Long>? { return pattern.matchEntire(text)?.groupValues?.drop(1)?.filter { it.isNotEmpty() }?.map { it.toLongOrNull() ?: return null } }
+    /** Numeric components are compared in order, with missing trailing components equal to zero. */
+    fun parts(text:String):List<Long>? {
+        val pieces=text.removePrefix("v").split('.')
+        if(pieces.any { it.isEmpty()||it.any { c->c !in '0'..'9' } })return null
+        return pieces.map { it.toLongOrNull() ?: return null }
+    }
     fun compare(first:String,second:String):Int {
         val a=parts(first) ?: error(tr("Некорректная версия релиза"));val b=parts(second) ?: error(tr("Некорректная установленная версия"))
-        for(i in 0..3) { val left=a.getOrElse(i){0};val right=b.getOrElse(i){0};if(left!=right)return left.compareTo(right) }
+        for(i in 0 until maxOf(a.size,b.size)) { val left=a.getOrElse(i){0};val right=b.getOrElse(i){0};if(left!=right)return left.compareTo(right) }
         return 0
     }
 }
 
 object AppReleases {
     const val REPOSITORY="redfaced97/OrcaSlicer-Android"
-    const val API="https://api.github.com/repos/${REPOSITORY}/releases/latest"
+    const val API="https://api.github.com/repos/${REPOSITORY}/releases"
     const val MAX_APK_BYTES=96L*1024*1024
-    fun latest():AppRelease?=decode(getJson(API))
+    private const val PAGE_SIZE=100
+    private const val MAX_PAGES=10
+
+    fun check(installed:String,cachedInstalledPublishedAtMillis:Long?=null):ReleaseCheck =
+        checkUsing(installed,cachedInstalledPublishedAtMillis,::getJson)
+
+    internal fun checkUsing(installed:String,cachedInstalledPublishedAtMillis:Long?,fetch:(String)->JsonElement):ReleaseCheck {
+        require(ReleaseVersion.parts(installed)!=null) { tr("Некорректная установленная версия") }
+        val releases=mutableListOf<JsonElement>()
+        for(page in 1..MAX_PAGES) {
+            val result=fetch("${API}?per_page=${PAGE_SIZE}&page=${page}")
+            val items=result as? JsonArray ?: error(tr("Неполный ответ GitHub"))
+            releases.addAll(items)
+            if(items.size<PAGE_SIZE)break
+            require(page<MAX_PAGES) { tr("Слишком много релизов для проверки обновлений") }
+        }
+        val fromList=installedDate(releases,installed)
+        val baseline=fromList ?: cachedInstalledPublishedAtMillis ?: runCatching {
+            publishedAt(fetch("${API}/tags/v${installed.removePrefix("v")}") as? JsonObject)
+        }.getOrNull()
+        return select(releases,installed,baseline)
+    }
+
+    private fun installedDate(releases:List<JsonElement>,installed:String):Long? = releases.asSequence().mapNotNull { it as? JsonObject }
+        .firstOrNull { it["tag_name"]?.jsonPrimitive?.contentOrNull?.removePrefix("v")==installed.removePrefix("v") }
+        ?.let(::publishedAt)
+
+    internal fun select(releases:List<JsonElement>,installed:String,knownInstalledDate:Long?=null):ReleaseCheck {
+        val baseline=installedDate(releases,installed) ?: knownInstalledDate
+        val candidates=releases.mapNotNull { runCatching { decode(it) }.getOrNull() }.filter { it.newerThan(installed,baseline) }
+        val update=candidates.maxWithOrNull(compareBy<AppRelease> { it.publishedAtMillis ?: Long.MIN_VALUE }
+            .thenComparator { a,b->ReleaseVersion.compare(a.version,b.version) })
+        return ReleaseCheck(update,baseline)
+    }
+
+    private fun publishedAt(root:JsonObject?):Long? = root?.get("published_at")?.jsonPrimitive?.contentOrNull?.let { date->runCatching { Instant.parse(date).toEpochMilli() }.getOrNull() }
+
     fun decode(root:JsonElement):AppRelease? {
         val obj=root as? JsonObject ?: error(tr("Неполный ответ GitHub"))
         if(obj["draft"]?.jsonPrimitive?.booleanOrNull==true||obj["prerelease"]?.jsonPrimitive?.booleanOrNull==true)return null
@@ -44,7 +95,7 @@ object AppReleases {
         val page="https://github.com/${REPOSITORY}/releases/tag/${tag}"
         val url=asset["browser_download_url"]?.jsonPrimitive?.content ?: return null
         require(url=="https://github.com/${REPOSITORY}/releases/download/${tag}/${name}") { tr("Неверный источник APK обновления") }
-        return AppRelease(version,obj["body"]?.jsonPrimitive?.contentOrNull.orEmpty().take(48_000),page,url,name,size,digest.lowercase())
+        return AppRelease(version,obj["body"]?.jsonPrimitive?.contentOrNull.orEmpty().take(48_000),page,url,name,size,digest.lowercase(),publishedAt(obj),tag)
     }
     fun verifyDownload(file:File,release:AppRelease) {
         require(file.isFile&&file.length()==release.bytes) { tr("Обновление скачано не полностью. Повторите загрузку.") }
@@ -61,7 +112,7 @@ object AppReleases {
         try {
             if(http.responseCode==404)return buildJsonObject { put("draft",true) }
             require(http.responseCode in 200..299) { if(http.responseCode in setOf(403,429))tr("GitHub временно ограничил проверки. Повторите позже.") else tr("Проверка обновления: HTTP {0}" ,http.responseCode) }
-            val bytes=http.inputStream.use { it.readNBytes(1024*1024+1) };require(bytes.size<=1024*1024) { tr("Слишком большой ответ GitHub") }
+            val bytes=http.inputStream.use { it.readNBytes(8*1024*1024+1) };require(bytes.size<=8*1024*1024) { tr("Слишком большой ответ GitHub") }
             return Json.parseToJsonElement(bytes.decodeToString())
         }finally{http.disconnect()}
     }

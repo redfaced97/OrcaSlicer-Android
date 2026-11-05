@@ -14,6 +14,13 @@ Prepare models, slice locally on your phone, inspect toolpaths and send G-code t
 
 [Download APK](https://github.com/redfaced97/OrcaSlicer-Android/releases/latest) · [User guide (RU)](docs/USAGE.md) · [Import profiles (RU)](docs/PROFILES.md) · [Build instructions (RU)](docs/BUILDING.md)
 
+## New in 0.6.8
+
+- The updater scans published releases and selects the newest compatible APK by `published_at`, independently of the GitHub Latest label.
+- Versions can have any number of numeric components, such as `0.6.7.1.2.3.4.5`. If publication dates are unavailable, components are compared from left to right; their sum is never used.
+- The installed release date is cached for restart and download resumption. Drafts, prereleases and unsuitable APKs are excluded.
+- **0.6.8** is also recognized by the older 0.6.6 updater. If 0.6.7.1 was missing, open **About → ⚙ → App updates → Check**.
+
 ## New in 0.6.7.1
 
 - Removed the accent dot at the end of the slicing progress track.

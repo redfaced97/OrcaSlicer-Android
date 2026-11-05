@@ -40,13 +40,16 @@ class AppUpdater private constructor(private val context:Context) {
     private val _state=MutableStateFlow(UpdateState(autoCheck=prefs.getBoolean("auto_check",true)))
     val state=_state.asStateFlow()
     init {
-        val pending=readRelease("download_release")?.takeIf { it.newerThan(BuildConfig.VERSION_NAME) }
+        val pending=readRelease("download_release")?.takeIf { isNewer(it) }
         if(pending!=null&&downloadId()>0)_state.update { it.copy(release=pending,stage=UpdateStage.DOWNLOADING) }
         else {
             if(downloadId()>0)clearDownload(remove=true)
-            readRelease("latest")?.takeIf { it.newerThan(BuildConfig.VERSION_NAME) }?.let { release->_state.update { it.copy(release=release,showDialog=prefs.getString("dismissed",null)!=release.version) } }
+            readRelease("latest")?.takeIf { isNewer(it) }?.let { release->_state.update { it.copy(release=release,showDialog=prefs.getString("dismissed",null)!=release.version) } }
         }
     }
+    private fun installedPublishedAt():Long? = if(prefs.getString("installed_release_version",null)==BuildConfig.VERSION_NAME)
+        prefs.getLong("installed_release_published_at",0).takeIf { it>0 } else null
+    private fun isNewer(release:AppRelease)=release.newerThan(BuildConfig.VERSION_NAME,installedPublishedAt())
     private fun readRelease(key:String):AppRelease? { return runCatching { Json.decodeFromString(AppRelease.serializer(),prefs.getString(key,null) ?: return null) }.getOrNull() }
     private fun downloadId()=prefs.getLong("download_id",-1)
     private fun apkFile(release:AppRelease)=File(context.getExternalFilesDir(null) ?: error(tr("Хранилище обновлений недоступно")),"updates/${release.apkName}")
@@ -63,8 +66,11 @@ class AppUpdater private constructor(private val context:Context) {
         if(!checkLock.tryLock())return
         _state.update { it.copy(checking=true,error=null,status=null) }
         try {
-            val release=withContext(Dispatchers.IO) { AppReleases.latest()?.takeIf { it.newerThan(BuildConfig.VERSION_NAME) } }
-            prefs.edit().putLong("last_check",System.currentTimeMillis()).putString("latest",release?.let { Json.encodeToString(AppRelease.serializer(),it) }).apply()
+            val result=withContext(Dispatchers.IO) { AppReleases.check(BuildConfig.VERSION_NAME,installedPublishedAt()) }
+            val release=result.update
+            val saved=prefs.edit().putLong("last_check",System.currentTimeMillis()).putString("latest",release?.let { Json.encodeToString(AppRelease.serializer(),it) })
+            result.installedPublishedAtMillis?.let { saved.putString("installed_release_version",BuildConfig.VERSION_NAME).putLong("installed_release_published_at",it) }
+            saved.apply()
             _state.update { s->s.copy(checking=false,release=if(s.stage in setOf(UpdateStage.DOWNLOADING,UpdateStage.VERIFYING,UpdateStage.READY))s.release else release,
                 showDialog=s.showDialog||(release!=null&&(show||prefs.getString("dismissed",null)!=release.version)),status=if(release==null)tr("Установлена актуальная версия {0}" ,BuildConfig.VERSION_NAME) else tr("Доступна версия {0}" ,release.version)) }
             if(release!=null)notifyAvailable(release)
@@ -78,8 +84,8 @@ class AppUpdater private constructor(private val context:Context) {
         val release=_state.value.release ?: return
         if(_state.value.stage in setOf(UpdateStage.DOWNLOADING,UpdateStage.VERIFYING))return
         try {
-            require(release.newerThan(BuildConfig.VERSION_NAME)) { tr("Обновление уже установлено") }
-            require(release.apkName=="OrcaSlicer-arm64-v${release.version}.apk"&&release.apkUrl=="https://github.com/${AppReleases.REPOSITORY}/releases/download/v${release.version}/${release.apkName}") { tr("Неверный источник обновления") }
+            require(isNewer(release)) { tr("Обновление уже установлено") }
+            require(release.apkName=="OrcaSlicer-arm64-v${release.version}.apk"&&release.tag.removePrefix("v")==release.version&&ReleaseVersion.parts(release.tag)!=null&&release.apkUrl=="https://github.com/${AppReleases.REPOSITORY}/releases/download/${release.tag}/${release.apkName}") { tr("Неверный источник обновления") }
             clearDownload(remove=true)
             val file=apkFile(release);file.parentFile?.mkdirs();file.delete()
             val id=downloads.enqueue(DownloadManager.Request(Uri.parse(release.apkUrl)).setTitle("OrcaSlicer ${release.version}").setDescription(tr("Загрузка обновления ARM64")).setMimeType("application/vnd.android.package-archive")
@@ -97,7 +103,7 @@ class AppUpdater private constructor(private val context:Context) {
         val id=downloadId();if(id<=0||(expectedId!=null&&id!=expectedId)||!verifyLock.tryLock())return
         try {
             val release=readRelease("download_release") ?: return
-            if(!release.newerThan(BuildConfig.VERSION_NAME)){clearDownload(remove=true);_state.update { it.copy(stage=UpdateStage.IDLE,release=null,autoInstall=false) };return}
+            if(!isNewer(release)){clearDownload(remove=true);_state.update { it.copy(stage=UpdateStage.IDLE,release=null,autoInstall=false) };return}
             val status=withContext(Dispatchers.IO) {
                 downloads.query(DownloadManager.Query().setFilterById(id)).use { c->
                     if(c==null||!c.moveToFirst())return@withContext null

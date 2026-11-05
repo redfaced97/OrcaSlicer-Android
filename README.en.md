@@ -16,6 +16,11 @@ Prepare models, slice locally on your phone, inspect toolpaths and send G-code t
 
 ## New in 0.6.9
 
+<p align="center">
+  <img src="docs/images/home.png" width="240" alt="Home screen and recent projects">
+  <img src="docs/images/gcode-thumbnail.png" width="200" alt="PNG thumbnail extracted from G-code">
+</p>
+
 - **Home screen:** create a project, open an STL / 3MF, continue working, or reopen recent projects with thumbnails and printer / filament names.
 - **Automatic project saving:** geometry, rotation, scale, plate position and selected presets with edits are stored on the device. Tap a card to resume. Projects survive model cache expiry and cleanup; deletion requires confirmation on Home. Tap the Orca logo in the top bar to return Home.
 - **G-code thumbnails:** every completed slice embeds transparent **32×32 and 400×400 PNGs** using OrcaSlicer thumbnail blocks. Previews use the model’s rotation and filament colour, depth-tested surfaces, lighting and antialiased edges, without the build plate or app UI. Both local exports and printer uploads contain the images.

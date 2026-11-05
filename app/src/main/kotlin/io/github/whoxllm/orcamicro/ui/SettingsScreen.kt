@@ -51,11 +51,7 @@ fun SettingsScreen(state: UiState, viewModel: MainViewModel) {
         PresetType.FILAMENT -> inputs.filament
     }
     val base = viewModel.presetFor(type)
-    val keysChanged = when (type) {
-        PresetType.MACHINE -> state.edits.machine.keys + state.edits.rawMachine.keys
-        PresetType.PROCESS -> state.edits.process.keys + state.edits.rawProcess.keys
-        PresetType.FILAMENT -> state.edits.filament.keys + state.edits.rawFilament.keys
-    }
+    val keysChanged = state.changedPresetKeys[type].orEmpty()
     val options = remember(type, preset.keys) { OrcaOptions.forType(type, preset) }
     val quickKeys = remember(type) { PrintSettings.forType(type).map { it.key }.toSet() }
     val categories = remember(options) { options.map { it.displayCategory }.distinct().sortedBy { listOf(tr("Качество"), tr("Прочность"), tr("Скорость"), tr("Поддержки"), tr("Мультиматериалы"), tr("Прочее")).indexOf(it).let { n -> if (n < 0) 99 else n } } }
@@ -80,10 +76,10 @@ fun SettingsScreen(state: UiState, viewModel: MainViewModel) {
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
-                title = { Text(tr("Параметры")) },
+                title = { Text(tr("Параметры") + state.presetSuffix(type)) },
                 windowInsets = WindowInsets(0, 0, 0, 0),
                 navigationIcon = { IconButton(onClick = viewModel::back) { Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("На стол")) } },
-                actions = { IconButton(onClick = { confirmReset = true }) { OrcaIcon(OrcaAction.Refresh, tr("Сбросить вкладку")) } },
+                actions = { PresetSaveAction(state, viewModel, type); IconButton(onClick = { confirmReset = true }) { OrcaIcon(OrcaAction.Refresh, tr("Сбросить вкладку")) } },
             )
         },
         bottomBar = {
@@ -100,7 +96,8 @@ fun SettingsScreen(state: UiState, viewModel: MainViewModel) {
             TabRow(selectedTabIndex = tab) {
                 settingTabs.forEachIndexed { index, (_, title) -> Tab(selected = tab == index, onClick = { tab = index }, text = { Text(title) }) }
             }
-            LanguageSettingsCard()
+            Text((preset.string("name").orEmpty()) + state.presetSuffix(type), Modifier.padding(horizontal=16.dp, vertical=6.dp), style=MaterialTheme.typography.labelMedium)
+            if(state.presetDirty(type)) Text(tr("* Не сохранено в профиль"), Modifier.padding(horizontal=16.dp), color=MaterialTheme.colorScheme.primary, style=MaterialTheme.typography.labelSmall)
             OutlinedTextField(
                 value = query, onValueChange = { query = it; category = null },
                 placeholder = { Text(tr("Найти параметр"), maxLines = 1, overflow = TextOverflow.Ellipsis) },
@@ -122,7 +119,7 @@ fun SettingsScreen(state: UiState, viewModel: MainViewModel) {
                 }
             }
             Text(
-                tr("{0} · {1} параметров" ,preset.string("name").orEmpty(),shown.size),
+                tr("{0} параметров",shown.size),
                 style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
             )
@@ -161,7 +158,7 @@ fun SettingsScreen(state: UiState, viewModel: MainViewModel) {
     }
     if (confirmReset) AlertDialog(
         onDismissRequest = { confirmReset = false }, title = { Text(tr("Сбросить «{0}»?" ,settingTabs[tab].second)) },
-        text = { Text(tr("Изменения и импортированный профиль этой вкладки будут удалены. Вернутся значения выбранного системного профиля.")) },
+        text = { Text(tr("Правки этой вкладки будут сброшены до значений выбранного профиля. Сам профиль сохранится.")) },
         confirmButton = { TextButton(onClick = { viewModel.resetEdits(type); confirmReset = false }) { Text(tr("Сбросить")) } },
         dismissButton = { TextButton(onClick = { confirmReset = false }) { Text(tr("Отмена")) } },
     )
@@ -176,7 +173,7 @@ private fun OptionEditor(option: OrcaOption, value: JsonElement?, baseValue: Jso
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         Column(Modifier.fillMaxWidth().imePadding().navigationBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(option.displayLabel, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                Text(option.displayLabel + if(draft != OrcaOptions.formValue(option, value)) " *" else "", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
                 IconButton(onClick = onFavorite) { Icon(if (favorite) Icons.Default.Star else Icons.Default.Add, if (favorite) tr("Убрать из избранного") else tr("В избранное")) }
             }
             Text(option.key, style = MaterialTheme.typography.labelSmall, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.primary)
@@ -193,7 +190,7 @@ private fun OptionEditor(option: OrcaOption, value: JsonElement?, baseValue: Jso
                 Button(onClick = {
                     try { onSave(OrcaOptions.parseForm(option, draft, value)) }
                     catch (e: Exception) { error = e.message ?: tr("Проверьте значение") }
-                }, modifier = Modifier.weight(1f)) { Text(tr("Сохранить")) }
+                }, modifier = Modifier.weight(1f)) { OrcaIcon(OrcaAction.Save, null); Spacer(Modifier.width(6.dp)); Text(tr("Применить")) }
             }
         }
     }

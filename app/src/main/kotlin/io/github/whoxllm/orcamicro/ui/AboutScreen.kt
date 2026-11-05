@@ -13,6 +13,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -53,12 +54,17 @@ private val thirdParty = listOf(
 fun AboutScreen(state: UiState, viewModel: MainViewModel) {
     val context = LocalContext.current
     fun open(url: String) { runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } }
-    Scaffold(topBar = { DesktopHeader(state, viewModel) }) { padding ->
+    androidx.activity.compose.BackHandler(enabled=state.appSettingsOpen) { viewModel.closeAppSettings() }
+    Scaffold(topBar = { DesktopHeader(state, viewModel) {
+        IconButton(onClick={if(state.appSettingsOpen)viewModel.closeAppSettings()else viewModel.openAppSettings()}) { Icon(Icons.Default.Settings,tr("Настройки приложения")) }
+    } }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            if(state.appSettingsOpen) {
+                AppSettingsContent(state,viewModel)
+                return@Column
+            }
             Text("OrcaSlicer ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.headlineSmall)
             Text(tr("Неофициальная Android-адаптация. Интерфейс по мотивам настольной OrcaSlicer, для сенсорного экрана телефона."))
-            LanguageSettingsCard()
-            UpdateCard()
             Text(tr("Команда"), style = MaterialTheme.typography.titleMedium)
             Text(tr("Продюсер — redfaced97"))
             Text(tr("Программист — Codex GPT-6.1-Sol"))

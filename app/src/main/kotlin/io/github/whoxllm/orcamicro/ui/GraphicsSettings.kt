@@ -14,19 +14,9 @@ import androidx.compose.ui.unit.dp
 import io.github.whoxllm.orcamicro.core.settings.*
 import io.github.whoxllm.orcamicro.render.SceneRenderer
 
-@Composable fun DevMenu(state: UiState, vm: MainViewModel, renderer: SceneRenderer, onDismiss: () -> Unit) {
+@Composable fun GraphicsSettings(state: UiState, vm: MainViewModel) {
     val o = state.renderOptions
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
-        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(tr("Dev menu · предпросмотр"), style = MaterialTheme.typography.titleLarge)
-            Text(tr("Настройки влияют на изображение. Параметры нарезки задаются отдельно."), style = MaterialTheme.typography.bodySmall)
-            Text(tr("Камера"), style = MaterialTheme.typography.titleMedium)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                for ((text, angles) in listOf(tr("Изометрия") to (-60f to 30f), tr("Сверху") to (-90f to 89f), tr("Спереди") to (-90f to 0f))) {
-                    OutlinedButton(onClick = { renderer.camera.view(angles.first, angles.second); renderer.requestFrame?.invoke() }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(4.dp)) { Text(text, style = MaterialTheme.typography.labelSmall) }
-                }
-            }
-            TextButton(onClick = { state.bed?.let { renderer.camera.frame(it.centerX,it.centerY,0f,maxOf(it.width,it.depth)*0.6f) }; renderer.requestFrame?.invoke() }) { Text(tr("Вместить стол в экран")) }
+    Column(Modifier.fillMaxWidth(), verticalArrangement=Arrangement.spacedBy(8.dp)) {
             DevSwitch(tr("Свободная камера"), tr("Разрешить обзор снизу стола"), o.freeCamera) { vm.setRenderOptions(o.copy(freeCamera = it)) }
             HorizontalDivider()
             DevSwitch("SSAO", tr("Затенение по соседним значениям глубины · экспериментально"), o.ssao) { vm.setRenderOptions(o.copy(ssao = it)) }
@@ -54,10 +44,7 @@ import io.github.whoxllm.orcamicro.render.SceneRenderer
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 for((rgb,title) in listOf(0x454545 to tr("Серый"),0x242424 to tr("Тёмный"),0xC3C5C7 to tr("Светлый"))) FilterChip(o.background == rgb, { vm.setRenderOptions(o.copy(background = rgb)) }, label = { Text(title) })
             }
-            Text(renderer.renderStatus, style = MaterialTheme.typography.bodySmall)
-            OutlinedButton(onClick = { vm.setRenderOptions(RenderOptions()) }, modifier = Modifier.fillMaxWidth()) { Text(tr("Сбросить графику")) }
-            Button(onClick = onDismiss, modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) { Text(tr("Готово")) }
-        }
+        OutlinedButton(onClick={vm.setRenderOptions(RenderOptions())}, modifier=Modifier.fillMaxWidth()) { Text(tr("Сбросить графику")) }
     }
 }
 @Composable private fun DevSwitch(title: String, detail: String, checked: Boolean, onChange: (Boolean) -> Unit) {

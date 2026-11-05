@@ -46,7 +46,6 @@ fun ModelLibraryScreen(state:UiState,vm:MainViewModel) {
     var tagText by rememberSaveable { mutableStateOf(state.catalogTags.joinToString(", ")) }
     var online by rememberSaveable { mutableStateOf(true) }
     var showTags by rememberSaveable { mutableStateOf(state.catalogTags.isNotEmpty()) }
-    var showCache by remember { mutableStateOf(false) };var showApi by remember { mutableStateOf(false) }
     var details by remember { mutableStateOf<LibraryModel?>(null) }
     var editTags by remember { mutableStateOf<LibraryModel?>(null) };var newTags by remember { mutableStateOf("") }
     val cacheSize=android.text.format.Formatter.formatShortFileSize(LocalContext.current,state.modelCacheBytes)
@@ -58,18 +57,12 @@ fun ModelLibraryScreen(state:UiState,vm:MainViewModel) {
         else vm.searchModels(source,query,tags)
     }
     Scaffold(topBar={DesktopHeader(state,vm) {
-        IconButton(onClick={showCache=true}){OrcaIcon(OrcaAction.Settings,tr("Настройки кэша моделей"))}
         IconButton(onClick={pick.launch(arrayOf("*/*"))}){OrcaIcon(OrcaAction.Import,tr("Открыть скачанный файл"))}
-    }},snackbarHost={SnackbarHost(snackbar)},bottomBar={if(state.libraryBusy)Surface(tonalElevation=3.dp) {
-        Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(12.dp),verticalArrangement=Arrangement.spacedBy(6.dp)) {
-            LinearProgressIndicator(Modifier.fillMaxWidth());Text(state.libraryProgress.orEmpty(),style=MaterialTheme.typography.bodySmall)
-        }
-    }}) { padding->
+    }},snackbarHost={SnackbarHost(snackbar)}) { padding->
         LazyColumn(Modifier.fillMaxSize().padding(padding),contentPadding=PaddingValues(12.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
             item { Row(verticalAlignment=Alignment.CenterVertically) {
                 Text(tr("Каталог моделей"),style=MaterialTheme.typography.titleLarge,modifier=Modifier.weight(1f),maxLines=1,overflow=TextOverflow.Ellipsis)
                 TextButton(onClick={showTags=!showTags}){Text(if(showTags)tr("Теги ▴") else tr("Теги"))}
-                TextButton(onClick={showApi=true}){Text("API")}
             } }
             item { Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                 FilterChip(online,{online=true},label={Text(tr("В интернете"))})
@@ -82,7 +75,7 @@ fun ModelLibraryScreen(state:UiState,vm:MainViewModel) {
                 if(state.catalogLoading)item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
                 state.catalogError?.let { error->item { OutlinedCard { Column(Modifier.padding(12.dp)) {
                     Text(error,color=MaterialTheme.colorScheme.error)
-                    Row { TextButton(onClick={search()}){Text(tr("Повторить"))};TextButton(onClick={showApi=true}){Text(tr("Настройки API"))} }
+                    Row { TextButton(onClick={search()}){Text(tr("Повторить"))};TextButton(onClick=vm::openAppSettings){Text(tr("Настройки API"))} }
                 } } } }
                 item { Text(tr("{0} · найдено {1}" ,state.catalogSource.title,state.catalogTotal)+(if(state.catalogTags.isNotEmpty())tr(" · теги: {0}" ,state.catalogTags.joinToString { "#${it}" }) else ""),style=MaterialTheme.typography.labelMedium) }
                 if(!state.catalogLoading&&state.catalogError==null&&remote.isEmpty())item { Text(tr("Ничего не найдено. Измените запрос, теги или площадку.")) }
@@ -108,12 +101,7 @@ fun ModelLibraryScreen(state:UiState,vm:MainViewModel) {
         SelectionContainer { Text(model.url,style=MaterialTheme.typography.bodySmall) }
     }},confirmButton={TextButton(onClick={details=null;vm.prepareCatalogModel(model,true)}){Text("Quick Print")}},dismissButton={TextButton(onClick={details=null}){Text(tr("Закрыть"))}}) }
     editTags?.let { model->AlertDialog(onDismissRequest={editTags=null},title={Text(tr("Теги модели"))},text={OutlinedTextField(newTags,{newTags=it},label={Text(tr("Через запятую"))},modifier=Modifier.fillMaxWidth())},confirmButton={TextButton(onClick={vm.setModelTags(model.id,newTags);editTags=null}){Text(tr("Сохранить"))}},dismissButton={TextButton(onClick={editTags=null}){Text(tr("Отмена"))}}) }
-    if(showApi)CatalogApiDialog(state.catalogCredentials,onSave={vm.saveCatalogCredentials(it);showApi=false},onDismiss={showApi=false})
-    if(showCache)AlertDialog(onDismissRequest={showCache=false},title={Text(tr("Кэш моделей"))},text={Column(Modifier.heightIn(max=400.dp).verticalScroll(rememberScrollState())) {
-        Text(tr("Срок после последнего открытия. Карточки и модель на столе сохраняются. Очистка при запуске и ежедневно в фоне."),style=MaterialTheme.typography.bodySmall)
-        ModelCache.durations.forEach { days->TextButton(onClick={vm.setCacheDays(days)},modifier=Modifier.fillMaxWidth()) { Text((if(days==state.modelCacheDays)"✓ " else "")+(if(days==0)tr("Не удалять автоматически") else tr("{0} дн." ,days))) } }
-        OutlinedButton(shape=MaterialTheme.shapes.small,onClick={vm.cleanModelCache(all=true)},enabled=!state.libraryBusy,modifier=Modifier.fillMaxWidth()){Text(tr("Очистить кэш · {0}" ,cacheSize))}
-    }},confirmButton={TextButton(onClick={showCache=false}){Text(tr("Готово"))}})
+
 }
 
 @Composable
@@ -173,7 +161,7 @@ fun ModelThumbnail(url:String?,modifier:Modifier=Modifier) {
 }
 
 @Composable
-private fun CatalogApiDialog(initial:CatalogCredentials,onSave:(CatalogCredentials)->Unit,onDismiss:()->Unit) {
+fun CatalogApiDialog(initial:CatalogCredentials,onSave:(CatalogCredentials)->Unit,onDismiss:()->Unit) {
     var value by remember { mutableStateOf(initial) }
     AlertDialog(onDismissRequest=onDismiss,title={Text(tr("API площадок"))},text={Column(Modifier.heightIn(max=430.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(10.dp)) {
         Text(tr("Поиск и карточки работают внутри приложения. Ключи шифруются Android Keystore и сохраняются только на этом телефоне."),style=MaterialTheme.typography.bodySmall)
@@ -204,7 +192,6 @@ fun CatalogFilesDialog(state:UiState,vm:MainViewModel) {
             state.catalogNotice?.let { notice->item { Text(notice,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant) } }
             if(state.catalogFiles.isNotEmpty())item { Text(tr("Выберите файл для {0}" ,if(state.catalogFileSetup)"Quick Print" else tr("стола")),style=MaterialTheme.typography.titleSmall) }
             items(state.catalogFiles.distinctBy { Triple(it.kind,it.id,it.url) },key={it.kind+it.id+it.url.orEmpty()}) { file->OutlinedButton(onClick={vm.chooseCatalogFile(file)},enabled=!state.libraryBusy,shape=MaterialTheme.shapes.small,modifier=Modifier.fillMaxWidth()){Text(file.name)} }
-            if(state.libraryBusy)item { LinearProgressIndicator(Modifier.fillMaxWidth());Text(state.libraryProgress.orEmpty()) }
             if(state.catalogFiles.isEmpty()&&state.catalogNotice==null)item { Text(tr("API не вернул STL/3MF. Можно прикрепить свой файл.")) }
             item { TextButton(onClick={pick.launch(arrayOf("*/*"))},enabled=!state.libraryBusy){Text(tr("Прикрепить свой STL / ZIP / 3MF"))} }
         }

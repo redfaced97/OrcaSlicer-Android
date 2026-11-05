@@ -64,13 +64,16 @@ object ModelTags {
 
 /** Streams a website-authorized download. Cookies are resolved separately for each redirect host. */
 object ModelDownload {
-    fun fetch(url:String, target:File, maxBytes:Long=96L*1024*1024, headers:(String)->Map<String,String> = { emptyMap() }, progress:(Long,Long)->Unit = { _,_-> }):String {
+    fun fetch(url:String, target:File, maxBytes:Long=96L*1024*1024, headers:(String)->Map<String,String> = { emptyMap() }, progress:(Long,Long)->Unit = { _,_-> }):String =
+        fetchUsing(url,target,maxBytes,headers,progress) { it.toURL().openConnection() as HttpURLConnection }
+
+    internal fun fetchUsing(url:String, target:File, maxBytes:Long, headers:(String)->Map<String,String>, progress:(Long,Long)->Unit, open:(URI)->HttpURLConnection):String {
         var current=url
         try {
             repeat(8) {
                 val uri=URI(current)
                 require(uri.scheme=="https" && !uri.host.isNullOrBlank() && uri.userInfo==null) { tr("Для модели нужна прямая HTTPS-ссылка") }
-                val http=(uri.toURL().openConnection() as HttpURLConnection).apply {
+                val http=open(uri).apply {
                     connectTimeout=15_000;readTimeout=30_000;instanceFollowRedirects=false
                     setRequestProperty("User-Agent","OrcaSlicer-Android")
                     headers(current).forEach { (key,value) -> require(!value.contains('\r')&&!value.contains('\n'));setRequestProperty(key,value) }
@@ -81,6 +84,7 @@ object ModelDownload {
                     require(http.contentType?.lowercase()?.contains("text/html")!=true) { tr("Площадка вернула страницу вместо файла модели. Проверьте доступ или прикрепите свой STL / ZIP / 3MF.") }
                     val total=http.contentLengthLong
                     require(total<=maxBytes) { tr("Файл больше 96 МБ") }
+                    progress(0,total)
                     http.inputStream.use { input -> target.outputStream().use { output ->
                         val buffer=ByteArray(64*1024);var received=0L
                         while(true) { if(Thread.currentThread().isInterrupted) throw java.io.InterruptedIOException();val size=input.read(buffer);if(size<0)break;received+=size;require(received<=maxBytes) { tr("Файл больше 96 МБ") };output.write(buffer,0,size);progress(received,total) }

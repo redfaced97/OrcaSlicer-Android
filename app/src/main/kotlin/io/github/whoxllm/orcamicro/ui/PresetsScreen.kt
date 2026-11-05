@@ -43,13 +43,14 @@ fun PresetsScreen(state: UiState, viewModel: MainViewModel) {
         DesktopHeader(state, viewModel) {
             IconButton(onClick = viewModel::back) { Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("На стол")) }
             IconButton(onClick = { import.launch(arrayOf("application/json", "text/*", "application/octet-stream")) }) { OrcaIcon(OrcaAction.Import, tr("Импорт профилей")) }
-            IconButton(onClick = { name = (viewModel.presetFor(type)?.string("name").orEmpty() + tr(" — копия")); save = true }) { OrcaIcon(OrcaAction.Save, tr("Сохранить профиль как")) }
+            PresetSaveAction(state, viewModel, type)
         }
     }, snackbarHost = { SnackbarHost(snackbar) }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
             TabRow(PresetType.entries.indexOf(type)) {
                 PresetType.entries.forEach { t -> Tab(selected = type == t, onClick = { type = t; vendor = null; browsePrinters = false; query = "" }, text = { Text(t.title()) }) }
             }
+            if(state.presetDirty(type)) Text(tr("* Не сохранено в профиль"), Modifier.padding(horizontal=16.dp, vertical=6.dp), color=MaterialTheme.colorScheme.primary)
             OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth().padding(12.dp), placeholder = { Text(tr("Поиск профиля")) }, singleLine = true)
             LazyColumn(Modifier.weight(1f)) {
                 if (!browsePrinters || type != PresetType.MACHINE) {
@@ -57,7 +58,7 @@ fun PresetsScreen(state: UiState, viewModel: MainViewModel) {
                     val own = state.userPresets.filter { it.type == type && matches(it.name) }
                     if (own.isEmpty()) item { Text(tr("Импортируйте JSON или набор из конфигурации OrcaSlicer"), Modifier.padding(horizontal = 16.dp, vertical = 8.dp), style = MaterialTheme.typography.bodySmall) }
                     items(own, key = { "user:${it.id}" }) { p ->
-                        PresetItem(p.name, tr("Пользовательский"), active?.string("name") == p.name, p.preset.first("default_filament_colour") ?: p.preset.first("filament_colour")) {
+                        PresetItem(p.name + if(active?.string("name")==p.name)state.presetSuffix(type)else "", tr("Пользовательский"), active?.string("name") == p.name, p.preset.first("default_filament_colour") ?: p.preset.first("filament_colour")) {
                             viewModel.selectUserPreset(p); viewModel.back()
                         }
                     }

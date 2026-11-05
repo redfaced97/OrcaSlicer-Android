@@ -147,6 +147,8 @@ private fun DesktopProfiles(state: UiState, viewModel: MainViewModel, onColor: (
                         androidx.compose.foundation.Canvas(Modifier.size(24.dp)) { drawCircle(Color(0xFF000000 or state.modelRgb().toLong())) }
                     }
                     Text(value, Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
+                    if(state.presetDirty(type)) Text("*", color=MaterialTheme.colorScheme.primary)
+                    if(state.presetDirty(type)) PresetSaveAction(state, viewModel, type)
                     IconButton(onClick = { viewModel.openSettings(type) }) { OrcaIcon(OrcaAction.Settings, tr("Параметры: {0}" ,label)) }
                 }
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)

@@ -66,8 +66,8 @@ import kotlin.math.roundToInt
 
 @Composable
 fun PreviewScreen(state: UiState, viewModel: MainViewModel) {
-    var showDev by remember { mutableStateOf(false) }
     val renderer = remember { ToolpathRenderer() }
+    var cameraViews by remember { mutableStateOf(false) }
     val result = state.lastResult
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
@@ -99,7 +99,15 @@ fun PreviewScreen(state: UiState, viewModel: MainViewModel) {
         Column(Modifier.fillMaxSize().padding(padding)) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(tr("Предпросмотр траекторий"), Modifier.weight(1f), style = MaterialTheme.typography.labelMedium)
-                androidx.compose.material3.TextButton(onClick = { showDev = true }) { OrcaIcon(OrcaAction.Settings, null); Text("Dev menu", Modifier.padding(start = 6.dp)) }
+                Box {
+                    IconButton(onClick={cameraViews=true}) { OrcaIcon(OrcaAction.Center,tr("Виды камеры")) }
+                    androidx.compose.material3.DropdownMenu(expanded=cameraViews,onDismissRequest={cameraViews=false}) {
+                        for((title,angles) in listOf(tr("Изометрия") to (-60f to 30f),tr("Сверху") to (-90f to 89f),tr("Спереди") to (-90f to 0f))) {
+                            androidx.compose.material3.DropdownMenuItem(text={Text(title)},onClick={renderer.camera.view(angles.first,angles.second);renderer.requestFrame?.invoke();cameraViews=false})
+                        }
+                        androidx.compose.material3.DropdownMenuItem(text={Text(tr("Вместить стол в экран"))},onClick={state.bed?.let { renderer.camera.frame(it.centerX,it.centerY,0f,max(it.width,it.depth)*0.6f) };renderer.requestFrame?.invoke();cameraViews=false})
+                    }
+                }
             }
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 SceneView(renderer, Modifier.fillMaxSize()) { r ->
@@ -169,7 +177,6 @@ fun PreviewScreen(state: UiState, viewModel: MainViewModel) {
             }
         }
     }
-    if(showDev) DevMenu(state, viewModel, renderer) { showDev = false }
 }
 
 @Composable

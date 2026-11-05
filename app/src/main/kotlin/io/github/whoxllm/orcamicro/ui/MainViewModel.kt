@@ -70,6 +70,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val state: StateFlow<UiState> = _state.asStateFlow()
 
     private var presets: ResolvedPresets? = null
+    private var selectionJob: Job? = null
+    private var selectionBackup: UiState? = null
     private var placementJob: Job? = null
     private var sliceJob: Job? = null
     private val saves = Channel<SavedState>(Channel.CONFLATED)
@@ -178,7 +180,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /** Recomputes the edited presets and everything derived from the printer (bed, fit). */
     private fun refreshInputs() {
         val resolved = presets ?: return
+        if (resolved.selection != _state.value.selection) return
         val edits = _state.value.edits
+        val baseline = SliceInputs.build(resolved.machine, resolved.process, resolved.filament, edits.copy(machine=emptyMap(), process=emptyMap(), filament=emptyMap(), rawMachine=emptyMap(), rawProcess=emptyMap(), rawFilament=emptyMap()))
         val inputs = SliceInputs.build(resolved.machine, resolved.process, resolved.filament, edits)
         val bed = BedShape.of(inputs.machine) ?: BedShape.rectangle(0f, 0f, 220f, 220f)
         val height = inputs.machine.first("printable_height")?.toFloatOrNull() ?: 250f
@@ -186,6 +190,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val changed=state.inputs?.let { it.machine!=inputs.machine || it.process!=inputs.process || it.filament!=inputs.filament }==true
             state.copy(
                 inputs = inputs,
+                changedPresetKeys = PresetType.entries.associateWith { type ->
+                    val current = when(type) { PresetType.MACHINE -> inputs.machine; PresetType.PROCESS -> inputs.process; PresetType.FILAMENT -> inputs.filament }
+                    val original = when(type) { PresetType.MACHINE -> baseline.machine; PresetType.PROCESS -> baseline.process; PresetType.FILAMENT -> baseline.filament }
+                    (current.keys + original.keys).filterTo(mutableSetOf()) { !io.github.whoxllm.orcamicro.core.settings.PresetChanges.equivalent(current[it], original[it]) }.also {
+                        if(type==PresetType.MACHINE && inputs.bedType != baseline.bedType && io.github.whoxllm.orcamicro.core.settings.PseudoKeys.BED_TYPE in edits.machine) it.add(io.github.whoxllm.orcamicro.core.settings.PseudoKeys.BED_TYPE)
+                    }
+                },
                 lastResult = if(changed) null else state.lastResult,
                 externalGcode = if(changed) null else state.externalGcode,
                 uploadedFile = if(changed) null else state.uploadedFile,
@@ -214,14 +225,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun applySelection(selection: PresetSelection, edits: PresetEdits) {
-        viewModelScope.launch {
+        selectionJob?.cancel()
+        if(_state.value.inputs!=null) selectionBackup=_state.value
+        val previous=selectionBackup ?: _state.value
+        _state.update { it.copy(selection=selection, edits=edits, inputs=null, changedPresetKeys=emptyMap(), lastResult=null, externalGcode=null, uploadedFile=null) }
+        selectionJob = viewModelScope.launch {
             try {
                 val resolved = withContext(Dispatchers.IO) { resolve(selection) }
                 presets = resolved
-                _state.update { it.copy(selection = selection, edits = edits) }
+                selectionBackup=null
                 refreshInputs()
                 persist()
-            } catch (e: Exception) {
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) {
+                _state.update { it.copy(selection=previous.selection, edits=previous.edits, inputs=previous.inputs, changedPresetKeys=previous.changedPresetKeys) }
                 showMessage(tr("Не удалось загрузить профиль: {0}" ,e.message))
             }
         }
@@ -306,7 +323,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val inputs = _state.value.inputs ?: return
         val clean = name.trim()
         if (clean.isEmpty()) return
-        val base = when(type) { PresetType.MACHINE -> inputs.machine; PresetType.PROCESS -> inputs.process; PresetType.FILAMENT -> inputs.filament }
+        val base = when(type) { PresetType.MACHINE -> JsonObject(inputs.machine + ("default_bed_type" to JsonPrimitive(inputs.bedType.orcaName))); PresetType.PROCESS -> inputs.process; PresetType.FILAMENT -> inputs.filament }
         val p = UserPreset(type, JsonObject(base + mapOf("name" to JsonPrimitive(clean), "from" to JsonPrimitive("User"))))
         _state.update { it.copy(userPresets = UserPresets.merge(it.userPresets, listOf(p))) }
         selectUserPreset(p)
@@ -397,7 +414,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun importModel(uri: Uri, attributed:LibraryModel?=null, setup:Boolean=false) {
         if(_state.value.libraryBusy)return showMessage(tr("Дождитесь открытия модели"))
-        _state.update { it.copy(libraryBusy=true,libraryProgress=tr("Импорт модели…")) }
+        _state.update { it.copy(libraryBusy=true,libraryPercent=null,libraryProgress=tr("Импорт модели…")) }
         viewModelScope.launch {
             val local="${UUID.randomUUID()}.bin"
             val file=File(app.filesDir,"library/${local}").also { it.parentFile?.mkdirs() }
@@ -407,6 +424,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         val buffer=ByteArray(64*1024);var total=0
                         while(true){val n=input.read(buffer);if(n<0)break;total+=n;require(total<=ModelFiles.MAX_FILE_BYTES){tr("Файл больше 96 МБ")};out.write(buffer,0,n)}
                     } } ?: error(tr("Файл недоступен"))
+                    _state.update { it.copy(libraryPercent=null,libraryProgress=tr("Проверка файла модели…")) }
                     ModelFiles.entries(file)
                     runCatching { app.contentResolver.takePersistableUriPermission(uri,android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) }
                     displayName(uri)
@@ -414,10 +432,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val old=_state.value.libraryModels.firstOrNull { if(attributed!=null)it.id==attributed.id else it.url==uri.toString() }
                 val card=attributed?.copy(filename=name,localFile=local) ?: old?.copy(filename=name,localFile=local) ?: LibraryModel(source=null,url=uri.toString(),title=name,filename=name,localFile=local)
                 old?.localFile?.takeIf { it.matches(Regex("[a-zA-Z0-9.-]+")) }?.let { File(app.filesDir,"library/${it}").delete() }
-                _state.update { it.copy(libraryBusy=false,libraryProgress=null,libraryModels=(listOf(card)+it.libraryModels.filterNot { m->m.id==card.id }).take(100),modelCacheBytes=File(app.filesDir,"library").listFiles().orEmpty().sumOf { f->f.length() }) }
+                _state.update { it.copy(libraryBusy=false,libraryPercent=null,libraryProgress=null,libraryModels=(listOf(card)+it.libraryModels.filterNot { m->m.id==card.id }).take(100),modelCacheBytes=File(app.filesDir,"library").listFiles().orEmpty().sumOf { f->f.length() }) }
                 persist();openLibraryModel(card.id,setup)
-            } catch(e:Exception) { file.delete();_state.update { it.copy(libraryBusy=false,libraryProgress=null) };showMessage(tr("Не удалось открыть модель: {0}" ,e.message)) }
-            catch(e:OutOfMemoryError) { file.delete();_state.update { it.copy(libraryBusy=false,libraryProgress=null) };showMessage(tr("Модель слишком большая для телефона")) }
+            } catch(e:Exception) { file.delete();_state.update { it.copy(libraryBusy=false,libraryPercent=null,libraryProgress=null) };showMessage(tr("Не удалось открыть модель: {0}" ,e.message)) }
+            catch(e:OutOfMemoryError) { file.delete();_state.update { it.copy(libraryBusy=false,libraryPercent=null,libraryProgress=null) };showMessage(tr("Модель слишком большая для телефона")) }
         }
     }
 
@@ -630,31 +648,31 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if(_state.value.libraryBusy)return
         val cached=_state.value.libraryModels.firstOrNull { (it.id==model.id || it.url==model.url)&&it.localFile!=null }
         if(cached!=null) { openLibraryModel(cached.id,setup);return }
-        _state.update { it.copy(libraryBusy=true,libraryProgress=tr("Получение файлов {0}…" ,model.source?.title.orEmpty()),catalogFileModel=null,catalogFiles=emptyList(),catalogNotice=null) }
+        _state.update { it.copy(libraryBusy=true,libraryPercent=null,libraryProgress=tr("Получение файлов {0}…" ,model.source?.title.orEmpty()),catalogFileModel=null,catalogFiles=emptyList(),catalogNotice=null) }
         val client=ModelCatalogClient(_state.value.catalogCredentials)
         viewModelScope.launch {
             try {
                 val detail=withContext(Dispatchers.IO) { client.details(model.url) }
                 val card=keepCatalogCard(detail.model)
-                _state.update { it.copy(libraryBusy=false,libraryProgress=null,catalogFileModel=card,catalogFiles=detail.files,catalogFileSetup=setup,catalogNotice=detail.notice) }
+                _state.update { it.copy(libraryBusy=false,libraryPercent=null,libraryProgress=null,catalogFileModel=card,catalogFiles=detail.files,catalogFileSetup=setup,catalogNotice=detail.notice) }
                 if(detail.files.size==1)chooseCatalogFile(detail.files.single())
-            }catch(e:CancellationException) { throw e }
-            catch(e:Exception) { _state.update { it.copy(libraryBusy=false,libraryProgress=null,catalogFileModel=model,catalogFileSetup=setup,catalogNotice=e.message ?: tr("Не удалось получить файлы")) } }
+            }catch(e:CancellationException) { _state.update { it.copy(libraryBusy=false,libraryPercent=null,libraryProgress=null) };throw e }
+            catch(e:Exception) { _state.update { it.copy(libraryBusy=false,libraryPercent=null,libraryProgress=null,catalogFileModel=model,catalogFileSetup=setup,catalogNotice=e.message ?: tr("Не удалось получить файлы")) } }
         }
     }
     fun dismissCatalogFiles() = _state.update { it.copy(catalogFiles=emptyList(),catalogFileModel=null,catalogNotice=null) }
     fun chooseCatalogFile(file:CatalogFile) {
         val s=_state.value;val card=s.catalogFileModel ?: return
         if(s.libraryBusy)return
-        _state.update { it.copy(libraryBusy=true,libraryProgress=tr("Получение ссылки на файл…"),catalogNotice=null) }
+        _state.update { it.copy(libraryBusy=true,libraryPercent=null,libraryProgress=tr("Получение ссылки на файл…"),catalogNotice=null) }
         val client=ModelCatalogClient(s.catalogCredentials)
         viewModelScope.launch {
             try {
                 val url=withContext(Dispatchers.IO) { client.downloadUrl(card,file) }
-                _state.update { it.copy(libraryBusy=false,libraryProgress=null) };dismissCatalogFiles()
+                _state.update { it.copy(libraryBusy=false,libraryPercent=null,libraryProgress=null) };dismissCatalogFiles()
                 downloadModel(url,card.url,card.title,file.name,card.imageUrl,tags=card.tags,setup=s.catalogFileSetup,catalogCard=card)
-            }catch(e:CancellationException) { throw e }
-            catch(e:Exception) { _state.update { it.copy(libraryBusy=false,libraryProgress=null,catalogNotice=e.message ?: tr("Не удалось получить файл")) } }
+            }catch(e:CancellationException) { _state.update { it.copy(libraryBusy=false,libraryPercent=null,libraryProgress=null) };throw e }
+            catch(e:Exception) { _state.update { it.copy(libraryBusy=false,libraryPercent=null,libraryProgress=null,catalogNotice=e.message ?: tr("Не удалось получить файл")) } }
         }
     }
     fun editQuickPrintPlacement() = _state.update { it.copy(screen=Screen.PLATE,quickPrintPlacement=true) }
@@ -677,7 +695,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun downloadModel(url:String,page:String,title:String,filename:String,image:String?=null,userAgent:String="",tags:List<String> = emptyList(),setup:Boolean=true,catalogCard:LibraryModel?=null) {
         if(_state.value.libraryBusy) return
         val card=(catalogCard?.let(::keepCatalogCard) ?: addLibraryCard(page,title,image,tags)) ?: return showMessage(tr("Проверьте ссылку на модель"))
-        _state.update { it.copy(libraryBusy=true,libraryProgress=tr("Скачивание модели…")) }
+        _state.update { it.copy(libraryBusy=true,libraryPercent=null,libraryProgress=tr("Скачивание модели…")) }
         viewModelScope.launch {
             val local="${UUID.randomUUID()}.bin"
             val file=File(app.filesDir,"library/${local}").also { it.parentFile?.mkdirs() }
@@ -690,16 +708,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         put("Referer",page)
                     } },progress={ received,total ->
                         val value=if(total>0)received*100/total else received/(256*1024)
-                        if(value!=last) { last=value;_state.update { it.copy(libraryProgress=if(total>0)tr("Скачивание: {0}%" ,value) else tr("Получено {0} МБ" ,received/(1024*1024))) } }
+                        if(value!=last) { last=value;_state.update { it.copy(libraryPercent=if(total>0)value.toInt().coerceIn(0,100)else null,libraryProgress=if(total>0)tr("Скачивание: {0}%" ,value) else tr("Получено {0} МБ" ,received/(1024*1024))) } }
                     })
+                    _state.update { it.copy(libraryPercent=null,libraryProgress=tr("Проверка файла модели…")) }
                     ModelFiles.entries(file)
                 }
                 card.localFile?.let { old->if(old.matches(Regex("[a-zA-Z0-9.-]+")))File(app.filesDir,"library/${old}").delete() }
                 val saved=card.copy(localFile=local,filename=filename.substringAfterLast('/').substringAfterLast('\\').take(180))
-                _state.update { it.copy(libraryBusy=false,libraryProgress=null,libraryModels=it.libraryModels.map { m->if(m.id==card.id)saved else m },modelCacheBytes=File(app.filesDir,"library").listFiles().orEmpty().sumOf { f->f.length() }) };persist()
+                _state.update { it.copy(libraryBusy=false,libraryPercent=null,libraryProgress=null,libraryModels=it.libraryModels.map { m->if(m.id==card.id)saved else m },modelCacheBytes=File(app.filesDir,"library").listFiles().orEmpty().sumOf { f->f.length() }) };persist()
                 openLibraryModel(card.id,setup=setup)
-            } catch(e:Exception) { file.delete();_state.update { it.copy(libraryBusy=false,libraryProgress=null) };showMessage(tr("Не удалось скачать модель: {0}" ,e.message)) }
-            catch(e:OutOfMemoryError) { file.delete();_state.update { it.copy(libraryBusy=false,libraryProgress=null) };showMessage(tr("Модель слишком большая для телефона")) }
+            } catch(e:Exception) { file.delete();_state.update { it.copy(libraryBusy=false,libraryPercent=null,libraryProgress=null) };showMessage(tr("Не удалось скачать модель: {0}" ,e.message)) }
+            catch(e:OutOfMemoryError) { file.delete();_state.update { it.copy(libraryBusy=false,libraryPercent=null,libraryProgress=null) };showMessage(tr("Модель слишком большая для телефона")) }
         }
     }
     fun openLibraryModel(id:String,setup:Boolean=false,entry:String?=null) {
@@ -708,20 +727,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val name=card.localFile ?: return if(card.source!=null)prepareCatalogModel(card,setup)else openModelLink(card.url)
         if(!name.matches(Regex("[a-zA-Z0-9.-]+")))return
         val file=File(app.filesDir,"library/${name}")
-        _state.update { it.copy(libraryBusy=true,libraryProgress=tr("Открытие модели…"),archiveChoices=emptyList(),pendingLibraryId=null) }
+        _state.update { it.copy(libraryBusy=true,libraryPercent=null,libraryProgress=tr("Открытие модели…"),archiveChoices=emptyList(),pendingLibraryId=null) }
         viewModelScope.launch {
             try {
                 val entries=withContext(Dispatchers.IO) { ModelFiles.entries(file) }
                 if(entries.size>1 && entry==null) {
                     pendingSetup=setup
-                    _state.update { it.copy(libraryBusy=false,libraryProgress=null,archiveChoices=entries,pendingLibraryId=id) };return@launch
+                    _state.update { it.copy(libraryBusy=false,libraryPercent=null,libraryProgress=null,archiveChoices=entries,pendingLibraryId=id) };return@launch
                 }
                 val mesh=withContext(Dispatchers.IO) { ModelFiles.read(file,entry).also { mesh->file.setLastModified(System.currentTimeMillis());store.modelFile.outputStream().use { StlWriter.write(mesh,it) } } }
                 val project=withContext(Dispatchers.IO){runCatching{ModelFiles.projectSettings(file,entry)}.getOrNull()}
                 setModel(entry?.substringAfterLast('/') ?: card.filename ?: card.title,mesh,centeredPlacement())
-                _state.update { it.copy(libraryBusy=false,libraryProgress=null,lastResult=null,externalGcode=null,uploadedFile=null,printDialog=false,activeModelCard=card,projectSettings=project,quickPrintPlacement=false,screen=if(setup)Screen.PRINT_SETUP else Screen.PLATE) };persist()
-            } catch(e:Exception) { _state.update { it.copy(libraryBusy=false,libraryProgress=null) };showMessage(tr("Не удалось открыть модель: {0}" ,e.message)) }
-            catch(e:OutOfMemoryError) { _state.update { it.copy(libraryBusy=false,libraryProgress=null) };showMessage(tr("Модель слишком большая для телефона")) }
+                _state.update { it.copy(libraryBusy=false,libraryPercent=null,libraryProgress=null,lastResult=null,externalGcode=null,uploadedFile=null,printDialog=false,activeModelCard=card,projectSettings=project,quickPrintPlacement=false,screen=if(setup)Screen.PRINT_SETUP else Screen.PLATE) };persist()
+            } catch(e:Exception) { _state.update { it.copy(libraryBusy=false,libraryPercent=null,libraryProgress=null) };showMessage(tr("Не удалось открыть модель: {0}" ,e.message)) }
+            catch(e:OutOfMemoryError) { _state.update { it.copy(libraryBusy=false,libraryPercent=null,libraryProgress=null) };showMessage(tr("Модель слишком большая для телефона")) }
         }
     }
     fun dismissProjectSettings(){_state.update{it.copy(projectSettings=null)}}
@@ -975,7 +994,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             try {
                 val uploaded = withContext(Dispatchers.IO) {
-                    printerClient(connection).upload(file, name) { percent -> _state.update { it.copy(uploadPercent = percent) } }
+                    printerClient(connection).upload(file, name) { percent -> _state.update { it.copy(uploadPercent = percent.coerceIn(0,100)) } }
                 }
                 uploadedConnection=connection
                 if(startAfter) {
@@ -985,18 +1004,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     showPrintDialog(false)
                 }
                 _state.update { it.copy(uploadPercent = null, uploadedFile = if(it.connection==connection && it.activePrinterId==before.activePrinterId && it.model===before.model && it.inputs===before.inputs)uploaded else null, message = tr("Загружено: {0}" ,uploaded)) }
-            } catch (e: Exception) {
-                _state.update { it.copy(uploadPercent = null, uploadError = tr("Ошибка загрузки: {0}" ,e.message)) }
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) {
+                _state.update { it.copy(uploadError = tr("Ошибка загрузки: {0}" ,e.message)) }
+            } finally {
+                _state.update { it.copy(uploadPercent=null) }
             }
         }
     }
 
+    fun openAppSettings() = _state.update { it.copy(screen=Screen.ABOUT, appSettingsOpen=true) }
+    fun closeAppSettings() = _state.update { it.copy(appSettingsOpen=false) }
+
     fun navigate(screen: Screen) {
         printSetupReturn=false
-        _state.update { it.copy(screen = screen, presetPicker = null,quickPrintPlacement=false) }
+        _state.update { it.copy(screen = screen, appSettingsOpen=false, presetPicker = null,quickPrintPlacement=false) }
     }
 
     fun back() {
+        if(_state.value.appSettingsOpen) { closeAppSettings();return }
         _state.update { it.copy(screen = if(it.quickPrintPlacement||printSetupReturn)Screen.PRINT_SETUP else Screen.PLATE,quickPrintPlacement=false) }
         printSetupReturn=false
     }

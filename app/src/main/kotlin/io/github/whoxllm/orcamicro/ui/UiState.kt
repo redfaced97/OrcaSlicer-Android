@@ -53,6 +53,8 @@ data class UiState(
     val edits: PresetEdits = PresetEdits(),
     /** The selected presets with the user's edits applied, as they will be sliced. */
     val inputs: SliceInputs? = null,
+    val changedPresetKeys: Map<PresetType, Set<String>> = emptyMap(),
+    val appSettingsOpen: Boolean = false,
     val bed: BedShape? = null,
     val printableHeight: Float = 250f,
     val model: ModelState? = null,
@@ -105,6 +107,7 @@ data class UiState(
     val quickPrintPlacement: Boolean = false,
     val libraryBusy: Boolean = false,
     val libraryProgress: String? = null,
+    val libraryPercent: Int? = null,
     val archiveChoices: List<String> = emptyList(),
     val pendingLibraryId: String? = null,
     val printDialog: Boolean = false,

@@ -52,6 +52,6 @@ OctoPrint: используются счётчики успехов и ошиб�
 
 ## Язык
 
-«О программе» или параметры печати → «Язык интерфейса»: **по языку системы / Русский / English**. Автоматически используется русский для русской локали и английский для остальных. Выбор также доступен через системные настройки языка приложения Android. Имена пользовательских пресетов, модели, авторы и серверные диагностические сообщения не переводятся.
+«О программе» → ⚙ → «Язык интерфейса»: **по языку системы / Русский / English**. Автоматически используется русский для русской локали и английский для остальных. Выбор также доступен через системные настройки языка приложения Android. Имена пользовательских пресетов, модели, авторы и серверные диагностические сообщения не переводятся.
 
 Источники протоколов: [Moonraker history](https://moonraker.readthedocs.io/en/latest/external_api/history/), [Moonraker temperature data](https://moonraker.readthedocs.io/en/latest/external_api/server/#request-cached-temperature-data), [OctoPrint printer API](https://docs.octoprint.org/en/main/api/printer.html), [OctoPrint job API](https://docs.octoprint.org/en/main/api/job.html), [OctoPrint profiles](https://docs.octoprint.org/en/main/api/printerprofiles.html), [OctoPrint files](https://docs.octoprint.org/en/main/api/files.html).

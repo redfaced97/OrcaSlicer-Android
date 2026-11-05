@@ -54,14 +54,11 @@ fun OrcaMicroApp(viewModel: MainViewModel, onInstallUpdate:()->Unit = {}) {
                     if(state.archiveChoices.isNotEmpty())AlertDialog(onDismissRequest=viewModel::dismissArchive,title={Text(tr("Выберите деталь из архива"))},text={
                         LazyColumn(Modifier.heightIn(max=420.dp)) { items(state.archiveChoices) { entry->TextButton(onClick={viewModel.chooseArchiveEntry(entry)}){Text(entry)} } }
                     },confirmButton={TextButton(onClick=viewModel::dismissArchive){Text(tr("Закрыть"))}})
-                    if(state.catalogFileModel!=null)CatalogFilesDialog(state,viewModel)
+                    if(state.catalogFileModel!=null && !state.libraryBusy)CatalogFilesDialog(state,viewModel)
                     if(state.projectSettings!=null)ProjectSettingsDialog(state,viewModel)
-                    if(state.printDialog)PrintSendDialog(state,viewModel)
+                    if(state.printDialog && state.uploadPercent==null && state.uploadError==null)PrintSendDialog(state,viewModel)
                     if(state.stopChallenge!=null)EmergencyStopDialog(state,viewModel)
-                    if (state.uploadPercent != null) AlertDialog(
-                        onDismissRequest = {}, title = { Text(tr("Загрузка G-code")) },
-                        text = { Column { LinearProgressIndicator(progress = { state.uploadPercent!! / 100f }, modifier = Modifier.fillMaxWidth()); Text("${state.uploadPercent}%") } }, confirmButton = {},
-                    )
+                    if (state.uploadPercent != null || state.libraryBusy) TransferProgressDialog(state)
                     state.uploadError?.let { error -> AlertDialog(onDismissRequest = viewModel::dismissUploadError, title = { Text(tr("Не удалось загрузить")) }, text = { Text(error) }, confirmButton = { TextButton(onClick = viewModel::dismissUploadError) { Text("OK") } }) }
                     UpdateUi(state,onInstallUpdate)
                     SliceDialogs(state.slice, onCancel = viewModel::cancelSlice, onDismiss = viewModel::dismissSliceError)

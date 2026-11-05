@@ -99,12 +99,13 @@ fun PrintSetupScreen(state:UiState,viewModel:MainViewModel) {
             } else TextButton(onClick=viewModel::editQuickPrintPlacement){Text(tr("Разместить модель на столе"))}
             if(state.model?.fits==false)Text(tr("Модель не помещается на выбранном принтере. Измените положение или масштаб на столе."),color=MaterialTheme.colorScheme.error)
             QuickPrintSection(tr("Филамент")) {
+                PresetDraftNotice(state,viewModel,PresetType.FILAMENT)
                 Row(verticalAlignment=Alignment.CenterVertically) {
                     Text(tr("Мои пресеты филамента"),Modifier.weight(1f),style=MaterialTheme.typography.bodyMedium)
                     Switch(ownOnly,{ownOnly=it},enabled=ownFilament.isNotEmpty())
                 }
                 if(ownFilament.isEmpty())Text(tr("Импортируйте свой конфиг во вкладке профилей."),style=MaterialTheme.typography.bodySmall)
-                ChoiceField(tr("Пластик"),state.inputs?.filament?.string("name").orEmpty(),ownFilament.map { PickerItem(it.id,it.name,tr("Мои профили")) }+
+                ChoiceField(tr("Пластик"),state.inputs?.filament?.string("name").orEmpty() + state.presetSuffix(PresetType.FILAMENT),ownFilament.map { PickerItem(it.id,it.name,tr("Мои профили")) }+
                     if(ownOnly)emptyList() else stock?.let { catalog.filamentsFor(selection.vendor,it).map { ref->PickerItem("stock:${ref.vendor}:${ref.name}",ref.name,tr("Штатные · {0}" ,ref.vendor)) } }.orEmpty()) { id->
                     ownFilament.firstOrNull { it.id==id }?.let(viewModel::selectUserPreset) ?: stock?.let { p->catalog.filamentsFor(selection.vendor,p).firstOrNull { "stock:${it.vendor}:${it.name}"==id }?.let(viewModel::selectFilament) }
                 }
@@ -115,16 +116,18 @@ fun PrintSetupScreen(state:UiState,viewModel:MainViewModel) {
                 Text(FILAMENT_REMINDER,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.primary)
             }
             QuickPrintSection(tr("Принтер")) {
+                PresetDraftNotice(state,viewModel,PresetType.MACHINE)
                 if(state.printers.isNotEmpty())ChoiceField(tr("Принтер в сети"),state.printers.firstOrNull { it.id==state.activePrinterId }?.name.orEmpty(),state.printers.map { PickerItem(it.id,it.name,it.connection.apiUrl) },onSelect=viewModel::selectSavedPrinter)
                 else OutlinedButton(shape=MaterialTheme.shapes.small,onClick={viewModel.navigate(Screen.DEVICE)}){Text(tr("Добавить подключение"))}
-                ChoiceField(tr("Профиль принтера"),state.inputs?.machine?.string("name").orEmpty(),
+                ChoiceField(tr("Профиль принтера"),state.inputs?.machine?.string("name").orEmpty() + state.presetSuffix(PresetType.MACHINE),
                     ownMachine.map { PickerItem(it.id,it.name,tr("Мои профили")) }+PickerItem("stock",selection.printer,tr("Штатный профиль"))) { id->
                     if(id=="stock")viewModel.selectPrinter(selection.vendor,selection.printer)else ownMachine.firstOrNull{it.id==id}?.let(viewModel::selectUserPreset)
                 }
                 TextButton(onClick={viewModel.openPreset(PresetType.MACHINE)}){Text(tr("Выбрать другой профиль принтера"))}
             }
             QuickPrintSection(tr("Параметры печати")) {
-                ChoiceField(tr("Процесс печати"),state.inputs?.process?.string("name").orEmpty(),ownProcess.map { PickerItem(it.id,it.name,tr("Мои профили")) }+
+                PresetDraftNotice(state,viewModel,PresetType.PROCESS)
+                ChoiceField(tr("Процесс печати"),state.inputs?.process?.string("name").orEmpty() + state.presetSuffix(PresetType.PROCESS),ownProcess.map { PickerItem(it.id,it.name,tr("Мои профили")) }+
                     stock?.let { catalog.processesFor(selection.vendor,it).map { name->PickerItem("stock:${name}",name,tr("Штатные")) } }.orEmpty()) { id->
                     ownProcess.firstOrNull { it.id==id }?.let(viewModel::selectUserPreset) ?: viewModel.selectProcess(id.removePrefix("stock:"))
                 }
@@ -150,7 +153,7 @@ fun PrintSetupScreen(state:UiState,viewModel:MainViewModel) {
 
 @Composable private fun QuickParameter(label:String,key:String,state:UiState,vm:MainViewModel,range:ClosedFloatingPointRange<Float>,suffix:String="",integer:Boolean=false,onValid:(Boolean)->Unit) {
     val stored=state.inputs?.process?.first(key).orEmpty().removeSuffix("%")
-    var text by remember(stored) { mutableStateOf(stored) }
+    var text by remember(state.selection?.process,state.edits.importedProcess?.string("name"),stored) { mutableStateOf(stored) }
     val value=text.replace(',','.').toFloatOrNull()
     val valid=value!=null&&value.isFinite()&&value in range&&(!integer||value%1f==0f)
     SideEffect { onValid(valid) }

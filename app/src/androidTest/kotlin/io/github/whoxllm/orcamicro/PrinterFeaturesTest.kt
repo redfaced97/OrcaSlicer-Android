@@ -27,7 +27,7 @@ class PrinterFeaturesTest {
     private val context=instrumentation.targetContext
     private fun main(action:()->Unit)=instrumentation.runOnMainSync(action)
     private fun await(condition:()->Boolean){val end=SystemClock.uptimeMillis()+30000;while(SystemClock.uptimeMillis()<end){if(condition())return;SystemClock.sleep(50)};assertTrue(condition())}
-    private class Fixture(val unavailable:Boolean=false):AutoCloseable {
+    private class Fixture(@Volatile var unavailable:Boolean=false, val uploadDelayMillis:Long=0):AutoCloseable {
         val server=ServerSocket(0).apply{soTimeout=200};val running=AtomicBoolean(true)
         val requests=CopyOnWriteArrayList<Pair<String,String>>()
         val connection get()=PrinterConnection("http://127.0.0.1:${server.localPort}",backend=PrinterBackend.OCTOPRINT)
@@ -45,6 +45,7 @@ class PrinterFeaturesTest {
                     "/api/files/local"->if(first.startsWith("POST"))"""{"done":true,"files":{"local":{"path":"fixture.gcode"}}}""" else """{"files":[{"print":{"success":3,"failure":1}}]}"""
                     else->"{}"
                 }
+                if(first.startsWith("POST /api/files/local ") && uploadDelayMillis>0)Thread.sleep(uploadDelayMillis)
                 val bytes=response.toByteArray();val status=if(unavailable)"503 Service Unavailable" else "200 OK"
                 socket.getOutputStream().write("HTTP/1.1 $status\r\nContent-Type: application/json\r\nContent-Length: ${bytes.size}\r\nConnection: close\r\n\r\n".toByteArray()+bytes)
             }}catch(_:SocketTimeoutException){}catch(_:Exception){if(running.get())throw AssertionError("Fixture stopped unexpectedly")}
@@ -64,6 +65,21 @@ class PrinterFeaturesTest {
             main{vm.uploadAndPrintGcode()};await{fixture.requests.any{it.first.startsWith("POST /api/files/local/fixture.gcode ")}}
             val request=fixture.requests.single{it.first.startsWith("POST /api/files/local/fixture.gcode ")};assertTrue(Json.parseToJsonElement(request.second).jsonObject["print"]!!.jsonPrimitive.boolean)
             await{!vm.state.value.deviceBusy}
+        }}}finally{store.save(before);file.delete()}
+    }
+    @Test fun failedUploadClearsProgressAndCanBeRetriedWithoutStartingPrint() {
+        val store=SettingsStore(context);val before=store.load()
+        val file=File(context.cacheDir,"retry-fixture.gcode").apply{writeText("; fixture\n"+"G1 X1\n".repeat(20000))}
+        try{Fixture(unavailable=true,uploadDelayMillis=1000).use{fixture->ActivityScenario.launch(MainActivity::class.java).use{scenario->
+            lateinit var vm:MainViewModel;scenario.onActivity{vm=ViewModelProvider(it)[MainViewModel::class.java]};await{vm.state.value.ready}
+            main{vm.savePrinter("Retry fixture",fixture.connection);vm.uploadPickedGcode(Uri.fromFile(file))};await{vm.state.value.externalGcode!=null}
+            main{vm.uploadLastGcode()};assertNotNull(vm.state.value.uploadPercent)
+            await{vm.state.value.uploadError!=null&&vm.state.value.uploadPercent==null};assertNull(vm.state.value.uploadedFile)
+            fixture.unavailable=false
+            main{vm.dismissUploadError();vm.uploadLastGcode()};await{vm.state.value.uploadedFile!=null&&vm.state.value.uploadPercent==null}
+            assertNull(vm.state.value.uploadError)
+            assertEquals(2,fixture.requests.count{it.first.startsWith("POST /api/files/local ")})
+            assertFalse(fixture.requests.any{it.first.startsWith("POST /api/job")||it.first.contains("POST /api/files/local/fixture.gcode")})
         }}}finally{store.save(before);file.delete()}
     }
     @Test fun detectedProfileNeedsConfirmationAndTemperaturePreferencesPersist() {

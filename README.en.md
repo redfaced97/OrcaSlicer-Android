@@ -14,6 +14,13 @@ Prepare models, slice locally on your phone, inspect toolpaths and send G-code t
 
 [Download APK](https://github.com/redfaced97/OrcaSlicer-Android/releases/latest) · [User guide (RU)](docs/USAGE.md) · [Import profiles (RU)](docs/PROFILES.md) · [Build instructions (RU)](docs/BUILDING.md)
 
+## New in 0.6.6
+
+- One transfer dialog shows a percentage when the file size is known, with separate link lookup, download and model validation phases. G-code upload distinguishes sending from waiting for printer confirmation; failed uploads can be retried.
+- The disk saves the current user preset; bundled presets are saved as user copies. An asterisk `*` marks edits not yet saved to the named preset. Working edits persist across restarts; reverting the values clears the asterisk.
+- Rapid preset changes now apply the latest selection and retain edits made while the preset is loading.
+- App settings now live in **About → ⚙**: language, graphics / Dev menu, catalog API credentials, cache retention, telemetry and updates. Slicing options remain in the print presets.
+
 ## New in 0.6.5
 
 - Russian and English UI, selected from Android's locale or overridden in settings.
@@ -52,7 +59,7 @@ Prepare models, slice locally on your phone, inspect toolpaths and send G-code t
 - **Settings:** 638 parameters with English and Russian labels and help, search, categories, favorites and modified-value filtering.
 - **Filament color:** palette and HEX input, including colors from imported profiles.
 - **Local slicing:** OrcaSlicer through JNI, normal and tree supports, G-code export and Android sharing.
-- **Toolpath preview:** layer selection, travel visibility and line-type filters. The visible **Dev menu** offers camera views, SSAO, shadows, plate surfaces and render-resolution controls.
+- **Toolpath preview:** layer selection, travel visibility and line-type filters. **About → ⚙ → Graphics / Dev menu** contains SSAO, shadows, plate surfaces, free camera and render-resolution controls.
 - **Klipper / Moonraker:** multiple saved connections, discovered heaters and sensors, 10-minute temperature charts, XYZ movement, homing, fan controls and print pause/resume/cancel. Mainsail/Fluidd can also be opened inside the app. Uploading G-code and starting a print are separate actions.
 - **Protected STOP:** emergency stop requires entering exactly `Stop Klipper!` and pressing the confirmation button. Closing the dialog or changing the selected printer does not send an emergency-stop command.
 - **In-app updates:** new-release notifications, changelogs, background APK downloads, checksum and signature checks, and handoff to Android's installer.

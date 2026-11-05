@@ -50,10 +50,6 @@ import kotlin.math.roundToInt
             Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(6.dp)) {
                 listOf(1,5,10).forEach{m->FilterChip(state.temperatureWindowMinutes==m,{vm.setTemperatureWindow(m)},label={Text(tr("{0} мин" ,m))})}
             }
-            Text(tr("Автообновление"),style=MaterialTheme.typography.labelMedium)
-            Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(6.dp)) {
-                listOf(1,5,10,30).forEach{seconds->FilterChip(state.telemetryIntervalSeconds==seconds,{vm.setTelemetryInterval(seconds)},label={Text(tr("{0} с" ,seconds))})}
-            }
             TemperatureChart(state.temperatureHistory,state.temperatureWindowMinutes)
             state.temperatureHistoryError?.let { Text(it,style=MaterialTheme.typography.bodySmall) }
             if(s.heaters.isEmpty())Text(tr("В Klipper не найдены датчики температуры"),style=MaterialTheme.typography.bodySmall)

@@ -690,5 +690,21 @@
   "Отправит M112 через OctoPrint. Восстановление зависит от прошивки принтера.": "Sends M112 through OctoPrint. Recovery depends on your printer firmware.",
   "Превышено время ожидания": "Connection timed out",
   "С паузами": "Including pauses",
-  "STL, ZIP, геометрия и параметры проектов 3MF; один объект и материал, 638 параметров, свои профили, каталоги моделей и просмотр слоёв. Klipper / OctoPrint, статистика и два языка. Покраска, мультиматериальная нарезка и раздельные столы 3MF пока не поддерживаются. Совместимость 90% не измерена.": "STL, ZIP, 3MF geometry and project settings; one object and material, 638 settings, custom presets, model catalogs and toolpath preview. Klipper / OctoPrint, statistics and two languages. Painting, multimaterial slicing and separate 3MF plates are not supported. “90% compatibility” has not been measured."
+  "STL, ZIP, геометрия и параметры проектов 3MF; один объект и материал, 638 параметров, свои профили, каталоги моделей и просмотр слоёв. Klipper / OctoPrint, статистика и два языка. Покраска, мультиматериальная нарезка и раздельные столы 3MF пока не поддерживаются. Совместимость 90% не измерена.": "STL, ZIP, 3MF geometry and project settings; one object and material, 638 settings, custom presets, model catalogs and toolpath preview. Klipper / OctoPrint, statistics and two languages. Painting, multimaterial slicing and separate 3MF plates are not supported. “90% compatibility” has not been measured.",
+  "Проверка файла модели…": "Checking model file…",
+  "Профиль с этим именем будет обновлён.": "The preset with this name will be updated.",
+  "* Не сохранено в профиль": "* Unsaved preset changes",
+  "Правки этой вкладки будут сброшены до значений выбранного профиля. Сам профиль сохранится.": "Changes in this tab will revert to the selected preset. The preset itself will be kept.",
+  "Настройки приложения": "App settings",
+  "‹ О программе": "‹ About",
+  "Графика · Dev menu": "Graphics · Dev menu",
+  "Каталоги и кэш моделей": "Catalogs and model cache",
+  "Без срока": "Keep forever",
+  "Телеметрия принтера": "Printer telemetry",
+  "Окно графика температур": "Temperature graph window",
+  "Загрузка модели": "Loading model",
+  "Принтер обрабатывает файл…": "The printer is processing the file…",
+  "Отправка файла на принтер…": "Sending file to printer…",
+  "Виды камеры": "Camera views",
+  "{0} параметров": "{0} options"
 }

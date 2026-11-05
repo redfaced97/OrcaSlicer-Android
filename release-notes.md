@@ -1,12 +1,19 @@
-Исправлено обнаружение обновлений с длинными номерами версий.
+## 0.6.9
 
-- Проверка читает опубликованные релизы GitHub и выбирает свежий совместимый APK по дате публикации, независимо от отметки Latest.
-- Поддерживаются номера с любым количеством числовых частей, например `0.6.7.1.2.3.4.5`. Без дат части сравниваются слева направо с нулями для отсутствующих хвостовых частей. Сумма чисел не используется.
-- Дата установленного релиза сохраняется для восстановления загрузки и проверки после перезапуска. Дата установки приложения на телефон не используется.
-- Черновики, предварительные релизы и неподходящие APK исключаются. Проверки SHA-256, подписи, пакета, ARM64-движка и более нового Android versionCode сохранены.
+- Стартовый экран: новый проект, открытие STL / 3MF, продолжение текущей работы и карточки последних проектов с миниатюрами.
+- Автосохранение геометрии, положения, поворота, масштаба, цвета филамента и пресетов с изменениями. Проекты восстанавливаются после перезапуска и сохраняются при очистке кэша моделей.
+- Логотип Orca в верхней панели возвращает на главную. Удаление сохранённого проекта требует подтверждения.
+- Нарезка встраивает в G-code две прозрачные PNG-миниатюры: 32×32 и 400×400. Предпросмотр учитывает поворот и цвет модели, освещение и перекрытие граней. Изображения не зависят от камеры интерфейса.
+- Миниатюры записываются стандартными блоками OrcaSlicer, с сохранением заголовка и команд печати. Они включены в экспортируемый и отправляемый на принтер G-code. Внешний готовый G-code остаётся без изменений.
+- Русский и английский интерфейс для новых экранов; README и руководство дополнены примерами.
 
-**0.6.8 видна старому обновлятору 0.6.6.** Если 0.6.7.1 не отображалась, откройте «О программе» → ⚙ → «Обновления приложения» → «Проверить». Можно также скачать этот APK и установить поверх приложения.
+ARM64 · Android 14+ · versionCode 15. Подпись сохранена для установки поверх предыдущих релизов.
 
-Android 14+, ARM64. Подпись совместима с предыдущими APK. Проверки: 85 JVM-тестов и 3 Android-теста обновлятора; запрос к реальным релизам GitHub.
+## English
 
-English: fixed long-version update detection, added release-list scanning and publication-date selection with unlimited numeric-component fallback, and persisted the installed release date for restart and download resumption. Version 0.6.8 is deliberately recognized by older three-component updaters. Open App updates → Check, or install this signed APK over the existing app.
+- Home screen with new/open actions, continue working and recent project cards with model thumbnails.
+- Automatic local snapshots retain geometry, placement, rotation, scale, filament colour and edited presets across restarts and model-cache cleanup.
+- Tap the Orca logo to return Home. Project deletion requires confirmation.
+- Completed slices embed transparent 32×32 and 400×400 PNG previews in standard OrcaSlicer G-code blocks. Depth-tested, shaded model previews follow rotation and filament colour, independently of the interactive camera.
+- Printer uploads and local exports include both images while preserving print commands and the slicer header. Existing external G-code is not modified.
+- Updated Russian / English UI and documentation.

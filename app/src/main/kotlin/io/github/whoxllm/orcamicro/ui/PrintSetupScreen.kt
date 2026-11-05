@@ -1,6 +1,7 @@
 package io.github.whoxllm.orcamicro.ui
 
 import io.github.whoxllm.orcamicro.core.i18n.tr
+import io.github.whoxllm.orcamicro.core.i18n.ptr
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.Canvas
 import androidx.compose.ui.graphics.Color
@@ -131,9 +132,9 @@ fun PrintSetupScreen(state:UiState,viewModel:MainViewModel) {
                     stock?.let { catalog.processesFor(selection.vendor,it).map { name->PickerItem("stock:${name}",name,tr("Штатные")) } }.orEmpty()) { id->
                     ownProcess.firstOrNull { it.id==id }?.let(viewModel::selectUserPreset) ?: viewModel.selectProcess(id.removePrefix("stock:"))
                 }
-                QuickParameter(tr("Высота слоя, мм"),"layer_height",state,viewModel,.01f..(state.inputs?.machine?.first("nozzle_diameter")?.toFloatOrNull() ?: .4f),onValid={validFields["layer"]=it})
-                QuickParameter(tr("Заполнение, %"),"sparse_infill_density",state,viewModel,0f..100f,suffix="%",onValid={validFields["infill"]=it})
-                QuickParameter(tr("Количество стенок"),"wall_loops",state,viewModel,1f..50f,integer=true,onValid={validFields["walls"]=it})
+                QuickParameter(ptr("Высота слоя, мм"),"layer_height",state,viewModel,.01f..(state.inputs?.machine?.first("nozzle_diameter")?.toFloatOrNull() ?: .4f),onValid={validFields["layer"]=it})
+                QuickParameter(ptr("Заполнение, %"),"sparse_infill_density",state,viewModel,0f..100f,suffix="%",onValid={validFields["infill"]=it})
+                QuickParameter(ptr("Количество стенок"),"wall_loops",state,viewModel,1f..50f,integer=true,onValid={validFields["walls"]=it})
                 OutlinedButton(shape=MaterialTheme.shapes.small,onClick={viewModel.openSettings()}){Text(tr("Все параметры печати"))}
             }
             if(state.lastResult!=null)OutlinedButton(shape=MaterialTheme.shapes.small,onClick={viewModel.navigate(Screen.PREVIEW)},modifier=Modifier.fillMaxWidth()){Text(tr("Проверить слои G-code"))}

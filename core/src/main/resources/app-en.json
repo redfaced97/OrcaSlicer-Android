@@ -706,5 +706,10 @@
   "Принтер обрабатывает файл…": "The printer is processing the file…",
   "Отправка файла на принтер…": "Sending file to printer…",
   "Виды камеры": "Camera views",
-  "{0} параметров": "{0} options"
+  "{0} параметров": "{0} options",
+  "Языки": "Languages",
+  "По языку системы": "Follow system language",
+  "Язык параметров": "Parameter language",
+  "Как у интерфейса": "Match interface",
+  "Названия, описания, разделы и значения параметров печати могут использовать другой язык.": "Print parameter names, descriptions, categories and values can use a different language."
 }

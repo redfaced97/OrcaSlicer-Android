@@ -97,6 +97,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private suspend fun load() {
         try {
             val saved = withContext(Dispatchers.IO) { store.load() }
+            io.github.whoxllm.orcamicro.core.i18n.AppText.parameterLanguage=saved.parameterLanguage
             val cacheDays=saved.modelCacheDays.takeIf { it in ModelCache.durations } ?: 7
             withContext(Dispatchers.IO) { ModelCache.clean(File(app.filesDir,"library"),cacheDays) }
             val apiCredentials = withContext(Dispatchers.IO) { runCatching { credentialStore.load() }.getOrDefault(CatalogCredentials()) }
@@ -127,6 +128,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         saved.edits.importedProcess?.let { UserPreset(PresetType.PROCESS, it) },
                         saved.edits.importedFilament?.let { UserPreset(PresetType.FILAMENT, it) })),
                     renderOptions = saved.renderOptions,
+                    parameterLanguage = saved.parameterLanguage,
                     temperatureWindowMinutes=saved.temperatureWindowMinutes.takeIf{it in listOf(1,5,10)} ?: 10,
                     telemetryIntervalSeconds=saved.telemetryIntervalSeconds.takeIf{it in listOf(1,5,10,30)} ?: 5,
                     screen = if (firstRun) Screen.PRESETS else Screen.PLATE,
@@ -1013,6 +1015,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun setParameterLanguage(language: io.github.whoxllm.orcamicro.core.i18n.ParameterLanguage) {
+        io.github.whoxllm.orcamicro.core.i18n.AppText.parameterLanguage=language
+        _state.update { it.copy(parameterLanguage=language) }
+        persist()
+    }
+
     fun openAppSettings() = _state.update { it.copy(screen=Screen.ABOUT, appSettingsOpen=true) }
     fun closeAppSettings() = _state.update { it.copy(appSettingsOpen=false) }
 
@@ -1034,7 +1042,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun persist() {
         val state = _state.value
         val saved = SavedState(state.selection, state.edits, state.model?.name, state.model?.placement, state.favorites, state.connection, state.userPresets, state.renderOptions,
-            state.printers,state.activePrinterId,state.libraryModels,state.modelCacheDays,state.activeModelCard?.id,state.temperatureWindowMinutes,state.telemetryIntervalSeconds)
+            state.printers,state.activePrinterId,state.libraryModels,state.modelCacheDays,state.activeModelCard?.id,state.temperatureWindowMinutes,state.telemetryIntervalSeconds,state.parameterLanguage)
         saves.trySend(saved)
     }
 }

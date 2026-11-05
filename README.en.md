@@ -14,6 +14,13 @@ Prepare models, slice locally on your phone, inspect toolpaths and send G-code t
 
 [Download APK](https://github.com/redfaced97/OrcaSlicer-Android/releases/latest) · [User guide (RU)](docs/USAGE.md) · [Import profiles (RU)](docs/PROFILES.md) · [Build instructions (RU)](docs/BUILDING.md)
 
+## New in 0.6.7.1
+
+- Removed the accent dot at the end of the slicing progress track.
+- App settings sections expand and collapse vertically without sideways motion.
+- **About → ⚙ → Languages** offers separate interface and parameter languages. Use English UI with Russian parameters, or Russian UI with English parameters. Parameter names, descriptions, categories and values follow this setting, including Quick Print.
+- The updater accepts three- and four-component versions. When upgrading from 0.6.6 or earlier, install this APK manually over the existing app: the older updater does not recognize `0.6.7.1`.
+
 ## New in 0.6.6
 
 - One transfer dialog shows a percentage when the file size is known, with separate link lookup, download and model validation phases. G-code upload distinguishes sending from waiting for printer confirmation; failed uploads can be retried.

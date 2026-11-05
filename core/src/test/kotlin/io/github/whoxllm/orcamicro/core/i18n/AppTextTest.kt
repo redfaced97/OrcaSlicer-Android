@@ -17,6 +17,25 @@ class AppTextTest {
             assertEquals("Сопло: 0.4 мм",tr("Сопло: {0} мм","0.4"));assertEquals(option.labelRu,option.displayLabel)
         }finally{AppText.english=false}
     }
+    @Test fun `parameter language is independent from interface language including values and help`() {
+        val option=OrcaOptions.all.first{it.key=="layer_height"}
+        val boolean=OrcaOptions.all.first{it.valueType=="coBool"}
+        try {
+            AppText.english=true;AppText.parameterLanguage=ParameterLanguage.RUSSIAN
+            assertEquals("Save",tr("Сохранить"));assertEquals(option.labelRu,option.displayLabel);assertEquals(option.descriptionRu,option.displayDescription)
+            assertEquals(option.categoryRu,option.displayCategory);assertEquals("Включено",OrcaOptions.display(boolean,JsonPrimitive("1")))
+            assertEquals("Высота слоя, мм",ptr("Высота слоя, мм"))
+            val unknown=OrcaOptions.forType(option.type,buildJsonObject{put("fixture_unknown",1)}).single{it.key=="fixture_unknown"}
+            assertEquals("Из профиля",unknown.displayCategory)
+            AppText.english=false;AppText.parameterLanguage=ParameterLanguage.ENGLISH
+            assertEquals("Сохранить",tr("Сохранить"));assertEquals(option.label,option.displayLabel);assertEquals(option.description,option.displayDescription)
+            assertEquals(option.category,option.displayCategory);assertEquals("On",OrcaOptions.display(boolean,JsonPrimitive("1")))
+            assertEquals("From profile",unknown.displayCategory)
+            AppText.parameterLanguage=ParameterLanguage.INTERFACE
+            assertEquals(option.labelRu,option.displayLabel)
+            AppText.english=true;assertEquals(option.label,option.displayLabel)
+        } finally { AppText.english=false;AppText.parameterLanguage=ParameterLanguage.INTERFACE }
+    }
     @Test fun `every translation preserves dynamic arguments and English has no Cyrillic UI text`() {
         val root=javaClass.getResourceAsStream("/app-en.json")!!.bufferedReader().use{Json.parseToJsonElement(it.readText()).jsonObject}
         assertTrue(root.size>=680)

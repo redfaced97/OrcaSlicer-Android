@@ -1,6 +1,8 @@
 package io.github.whoxllm.orcamicro.ui
 
 import io.github.whoxllm.orcamicro.core.i18n.tr
+import io.github.whoxllm.orcamicro.core.i18n.ptr
+import io.github.whoxllm.orcamicro.core.i18n.AppText
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -40,7 +42,8 @@ fun SettingsScreen(state: UiState, viewModel: MainViewModel) {
     var allOptions by rememberSaveable { mutableStateOf(true) }
     var favoritesOnly by rememberSaveable { mutableStateOf(false) }
     var changedOnly by rememberSaveable { mutableStateOf(false) }
-    var category by rememberSaveable(tab) { mutableStateOf<String?>(null) }
+    val parameterEnglish=AppText.parametersEnglish
+    var category by rememberSaveable(tab,parameterEnglish) { mutableStateOf<String?>(null) }
     var editing by remember { mutableStateOf<OrcaOption?>(null) }
     var confirmReset by remember { mutableStateOf(false) }
     var transferType by rememberSaveable { mutableStateOf(PresetType.PROCESS) }
@@ -52,10 +55,10 @@ fun SettingsScreen(state: UiState, viewModel: MainViewModel) {
     }
     val base = viewModel.presetFor(type)
     val keysChanged = state.changedPresetKeys[type].orEmpty()
-    val options = remember(type, preset.keys) { OrcaOptions.forType(type, preset) }
+    val options = remember(type, preset.keys,parameterEnglish) { OrcaOptions.forType(type, preset) }
     val quickKeys = remember(type) { PrintSettings.forType(type).map { it.key }.toSet() }
-    val categories = remember(options) { options.map { it.displayCategory }.distinct().sortedBy { listOf(tr("Качество"), tr("Прочность"), tr("Скорость"), tr("Поддержки"), tr("Мультиматериалы"), tr("Прочее")).indexOf(it).let { n -> if (n < 0) 99 else n } } }
-    val shown = remember(options, query, allOptions, favoritesOnly, changedOnly, category, state.favorites, keysChanged) {
+    val categories = remember(options,parameterEnglish) { options.map { it.displayCategory }.distinct().sortedBy { listOf(ptr("Качество"), ptr("Прочность"), ptr("Скорость"), ptr("Поддержки"), ptr("Мультиматериалы"), ptr("Прочее")).indexOf(it).let { n -> if (n < 0) 99 else n } } }
+    val shown = remember(options, query, allOptions, favoritesOnly, changedOnly, category, state.favorites, keysChanged,parameterEnglish) {
         options.filter { option ->
             (allOptions || query.isNotBlank() || favoritesOnly || changedOnly || option.key in quickKeys) &&
                 option.matches(query) && (category == null || category == option.displayCategory) &&
@@ -129,14 +132,14 @@ fun SettingsScreen(state: UiState, viewModel: MainViewModel) {
                 }
             } else {
                 LazyColumn(Modifier.fillMaxSize()) {
-                    items(shown, key = { "${type.name}/${it.key}" }) { option ->
+                    items(shown, key = { "${type.name}/${it.key}/${parameterEnglish}" }) { option ->
                         val value = preset[option.key]
                         Row(
                             Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable { editing = option }.padding(horizontal = 16.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
                             Text(option.displayLabel, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
-                            val summary = if (value == null) tr("По умолчанию") else OrcaOptions.display(option, value).ifBlank { tr("Пусто") }
+                            val summary = if (value == null) ptr("По умолчанию") else OrcaOptions.display(option, value).ifBlank { ptr("Пусто") }
                             Text(summary, style = MaterialTheme.typography.bodyMedium, color = if (option.key in keysChanged) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.widthIn(max = 112.dp), maxLines = 2, overflow = TextOverflow.Ellipsis)
                             if ("${type.name}/${option.key}" in state.favorites) Icon(Icons.Default.Star, tr("Избранное"), Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
                         }
@@ -232,7 +235,7 @@ private fun ValueFields(option: OrcaOption, value: JsonElement, original: JsonEl
                 }
                 if(option.valueType != "coEnum" || option.choices.isEmpty()) OutlinedTextField(
                     value = text, onValueChange = { onChange(JsonPrimitive(it)) },
-                    label = { Text(label) }, placeholder = if (inherited) { { Text(tr("По умолчанию")) } } else null,
+                    label = { Text(label) }, placeholder = if (inherited) { { Text(ptr("По умолчанию")) } } else null,
                     suffix = if (option.unit.isNotBlank()) { { Text(option.unit) } } else null,
                     modifier = Modifier.fillMaxWidth(), minLines = if (option.isGcode) 4 else 1, maxLines = if (option.isGcode) 10 else 4,
                     textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = if (option.isGcode) FontFamily.Monospace else MaterialTheme.typography.bodyMedium.fontFamily),

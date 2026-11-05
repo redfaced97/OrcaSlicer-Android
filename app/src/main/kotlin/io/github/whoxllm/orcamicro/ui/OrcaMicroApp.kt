@@ -77,7 +77,7 @@ private fun SliceDialogs(slice: SliceState, onCancel: () -> Unit, onDismiss: () 
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(slice.text.ifBlank { tr("Обработка модели") }, style = MaterialTheme.typography.bodyMedium)
-                    LinearProgressIndicator(progress = { slice.percent / 100f }, modifier = Modifier.fillMaxWidth())
+                    LinearProgressIndicator(progress = { slice.percent.coerceIn(0,100) / 100f }, modifier = Modifier.fillMaxWidth(), drawStopIndicator = {})
                     Text("${slice.percent}%", style = MaterialTheme.typography.labelMedium)
                 }
             },

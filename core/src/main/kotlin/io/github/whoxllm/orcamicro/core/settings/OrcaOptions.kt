@@ -1,6 +1,7 @@
 package io.github.whoxllm.orcamicro.core.settings
 
 import io.github.whoxllm.orcamicro.core.i18n.tr
+import io.github.whoxllm.orcamicro.core.i18n.ptr
 import io.github.whoxllm.orcamicro.core.profiles.PresetType
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
@@ -22,10 +23,10 @@ data class OrcaOption(
     val choices: List<String> = emptyList(),
     val choiceLabelsRu: Map<String, String> = emptyMap(),
 ) {
-    val displayLabel:String get()=if(io.github.whoxllm.orcamicro.core.i18n.AppText.english)label else labelRu
-    val displayDescription:String get()=if(io.github.whoxllm.orcamicro.core.i18n.AppText.english)description else descriptionRu
-    val displayCategory:String get()=if(io.github.whoxllm.orcamicro.core.i18n.AppText.english)category else categoryRu
-    fun choiceLabel(value:String):String=if(io.github.whoxllm.orcamicro.core.i18n.AppText.english)value.replace('_',' ').replaceFirstChar{it.uppercase()}else choiceLabelsRu[value] ?: value
+    val displayLabel:String get()=if(io.github.whoxllm.orcamicro.core.i18n.AppText.parametersEnglish)label else labelRu
+    val displayDescription:String get()=if(io.github.whoxllm.orcamicro.core.i18n.AppText.parametersEnglish)description else descriptionRu
+    val displayCategory:String get()=if(io.github.whoxllm.orcamicro.core.i18n.AppText.parametersEnglish)category else categoryRu
+    fun choiceLabel(value:String):String=if(io.github.whoxllm.orcamicro.core.i18n.AppText.parametersEnglish)value.replace('_',' ').replaceFirstChar{it.uppercase()}else choiceLabelsRu[value] ?: value
 
     val isList: Boolean get() = valueType in setOf("coFloats", "coInts", "coStrings", "coPercents", "coBools", "coEnums", "coFloatsOrPercents", "coPoints", "coPointsGroups")
     val isGcode: Boolean get() = "gcode" in key
@@ -46,7 +47,7 @@ object OrcaOptions {
         val known = all.filter { it.type == type }
         val knownKeys = known.map { it.key }.toSet()
         return known + preset.keys.filter { it !in knownKeys && it !in metadata }.map { key ->
-            OrcaOption(key, type, key, categoryRu = tr("Из профиля"), valueType = if (preset[key] is JsonArray) "coStrings" else "coString")
+            OrcaOption(key, type, key, category = "From profile", categoryRu = "Из профиля", valueType = if (preset[key] is JsonArray) "coStrings" else "coString")
         }
     }
 
@@ -75,14 +76,14 @@ object OrcaOptions {
     /** Human-readable values; JSON syntax belongs to the saved profile, not the interface. */
     fun display(value: JsonElement?): String = when (value) {
         null -> ""
-        is JsonPrimitive -> if (value == JsonNull || value.content == "nil") tr("По умолчанию") else value.content
-        is JsonArray -> value.joinToString(" · ") { display(it) }.ifEmpty { tr("Нет значений") }
+        is JsonPrimitive -> if (value == JsonNull || value.content == "nil") ptr("По умолчанию") else value.content
+        is JsonArray -> value.joinToString(" · ") { display(it) }.ifEmpty { ptr("Нет значений") }
         is JsonObject -> value.entries.joinToString("; ") { "${it.key}: ${display(it.value)}" }
     }
 
     fun display(option: OrcaOption, value: JsonElement?): String = when(value) {
         is JsonArray -> value.joinToString(" · ") { display(option, it) }
-        is JsonPrimitive -> if (scalarOption(option).valueType == "coBool") when(value.content) { "1", "true" -> tr("Включено"); "0", "false" -> tr("Выключено"); else -> display(value) } else option.choiceLabel(display(value))
+        is JsonPrimitive -> if (scalarOption(option).valueType == "coBool") when(value.content) { "1", "true" -> ptr("Включено"); "0", "false" -> ptr("Выключено"); else -> display(value) } else option.choiceLabel(display(value))
         else -> display(value)
     }
 

@@ -13,7 +13,17 @@ class AppReleaseTest {
     @Test fun `numeric version comparison handles patch releases and skips unstable versions`() {
         assertTrue(ReleaseVersion.compare("0.6.10","0.6.2")>0);assertTrue(ReleaseVersion.compare("v0.6.2","0.6.0")>0)
         assertEquals(0,ReleaseVersion.compare("0.6.2","v0.6.2"));assertTrue(ReleaseVersion.compare("0.6.2","0.7.0")<0)
-        for(text in listOf("0.6","0.6.3-beta","nightly","0.6.2.1","999999999999999999999.0.1"))assertNull(ReleaseVersion.parts(text))
+        for(text in listOf("0.6","0.6.3-beta","nightly","0.6.2.1.0","999999999999999999999.0.1"))assertNull(ReleaseVersion.parts(text))
+    }
+    @Test fun `four component releases are downloadable and compare numerically`() {
+        assertEquals(listOf(0L,6L,7L,1L),ReleaseVersion.parts("v0.6.7.1"))
+        assertTrue(ReleaseVersion.compare("0.6.7.1","0.6.7")>0)
+        assertTrue(ReleaseVersion.compare("0.6.7.10","0.6.7.9")>0)
+        assertTrue(ReleaseVersion.compare("0.6.8","0.6.7.99")>0)
+        assertEquals(0,ReleaseVersion.compare("0.6.7.0","0.6.7"))
+        val update=AppReleases.decode(release(tag="v0.6.7.1"))!!
+        assertEquals("0.6.7.1",update.version);assertTrue(update.newerThan("0.6.6"))
+        assertEquals("OrcaSlicer-arm64-v0.6.7.1.apk",update.apkName)
     }
     @Test fun `only stable ARM64 releases from the app repository are offered`() {
         val update=AppReleases.decode(release())!!

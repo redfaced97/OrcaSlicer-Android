@@ -15,11 +15,11 @@ data class AppRelease(val version:String,val notes:String,val pageUrl:String,val
 }
 
 object ReleaseVersion {
-    private val pattern=Regex("v?(\\d+)\\.(\\d+)\\.(\\d+)")
-    fun parts(text:String):List<Long>? { return pattern.matchEntire(text)?.groupValues?.drop(1)?.map { it.toLongOrNull() ?: return null } }
+    private val pattern=Regex("v?(\\d+)\\.(\\d+)\\.(\\d+)(?:\\.(\\d+))?")
+    fun parts(text:String):List<Long>? { return pattern.matchEntire(text)?.groupValues?.drop(1)?.filter { it.isNotEmpty() }?.map { it.toLongOrNull() ?: return null } }
     fun compare(first:String,second:String):Int {
         val a=parts(first) ?: error(tr("Некорректная версия релиза"));val b=parts(second) ?: error(tr("Некорректная установленная версия"))
-        for(i in 0..2)if(a[i]!=b[i])return a[i].compareTo(b[i])
+        for(i in 0..3) { val left=a.getOrElse(i){0};val right=b.getOrElse(i){0};if(left!=right)return left.compareTo(right) }
         return 0
     }
 }

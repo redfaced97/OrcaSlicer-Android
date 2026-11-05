@@ -18,8 +18,8 @@ root = Path(__file__).resolve().parents[1]
 if len(sys.argv) != 5:
     raise SystemExit(__doc__)
 version, apk_arg, source_arg, notes_arg = sys.argv[1:]
-if not re.fullmatch(r'\d+\.\d+\.\d+(?:-[a-zA-Z0-9.]+)?', version):
-    raise SystemExit('Use a version such as 0.5.0')
+if not re.fullmatch(r'\d+(?:\.\d+){2,3}(?:-[a-zA-Z0-9.]+)?', version):
+    raise SystemExit('Use a version such as 0.6.7.1')
 apk, notes = Path(apk_arg).resolve(), Path(notes_arg).resolve()
 assert apk.is_file() and notes.is_file()
 source_sha = subprocess.check_output(['git', 'rev-parse', f'{source_arg}^{{commit}}'], cwd=root, text=True).strip()

@@ -39,6 +39,7 @@ data class SavedState(
     val modelCacheDays: Int = 7,
     val activeModelId: String? = null,
     val temperatureWindowMinutes:Int=10,val telemetryIntervalSeconds:Int=5,
+    val parameterLanguage: io.github.whoxllm.orcamicro.core.i18n.ParameterLanguage = io.github.whoxllm.orcamicro.core.i18n.ParameterLanguage.INTERFACE,
 )
 
 /** Persists [SavedState] as JSON in app storage, and keeps a copy of the current model. */

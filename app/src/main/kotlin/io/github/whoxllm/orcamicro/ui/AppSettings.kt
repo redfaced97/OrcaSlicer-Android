@@ -1,6 +1,11 @@
 package io.github.whoxllm.orcamicro.ui
 
 import android.text.format.Formatter
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -20,7 +25,7 @@ fun AppSettingsContent(state: UiState, vm: MainViewModel) {
     val size = Formatter.formatShortFileSize(LocalContext.current,state.modelCacheBytes)
     TextButton(onClick=vm::closeAppSettings) { Text(tr("‹ О программе")) }
     Text(tr("Настройки приложения"),style=MaterialTheme.typography.headlineSmall)
-    LanguageSettingsCard()
+    LanguageSettingsCard(state,vm)
     SettingsGroup(tr("Графика · Dev menu")) { GraphicsSettings(state,vm) }
     SettingsGroup(tr("Каталоги и кэш моделей")) {
         OutlinedButton(onClick={api=true},modifier=Modifier.fillMaxWidth()) { Text(tr("Настройки API")) }
@@ -53,7 +58,12 @@ private fun SettingsGroup(title: String, content: @Composable ColumnScope.()->Un
             Text(title,Modifier.weight(1f),style=MaterialTheme.typography.titleMedium)
             Text(if(expanded) "▴" else "▾")
         }
-        androidx.compose.animation.AnimatedVisibility(expanded) {
+        androidx.compose.animation.AnimatedVisibility(
+            visible=expanded,
+            modifier=Modifier.fillMaxWidth(),
+            enter=expandVertically(animationSpec=tween(220),expandFrom=Alignment.Top)+fadeIn(tween(180)),
+            exit=shrinkVertically(animationSpec=tween(180),shrinkTowards=Alignment.Top)+fadeOut(tween(120)),
+        ) {
             Column(Modifier.padding(horizontal=12.dp).padding(bottom=12.dp),verticalArrangement=Arrangement.spacedBy(8.dp),content=content)
         }
     }

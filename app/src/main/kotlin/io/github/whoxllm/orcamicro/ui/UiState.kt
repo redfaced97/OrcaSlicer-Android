@@ -55,6 +55,7 @@ data class UiState(
     val inputs: SliceInputs? = null,
     val changedPresetKeys: Map<PresetType, Set<String>> = emptyMap(),
     val appSettingsOpen: Boolean = false,
+    val parameterLanguage: io.github.whoxllm.orcamicro.core.i18n.ParameterLanguage = io.github.whoxllm.orcamicro.core.i18n.ParameterLanguage.INTERFACE,
     val bed: BedShape? = null,
     val printableHeight: Float = 250f,
     val model: ModelState? = null,
